@@ -1,12 +1,12 @@
 EESchema Schematic File Version 4
 EELAYER 26 0
 EELAYER END
-$Descr User 9449 7087
+$Descr User 8661 5906
 encoding utf-8
 Sheet 1 1
-Title "WROOM32 Compute PCB"
-Date "2018-12-29"
-Rev "2"
+Title "SX8634-Breakout"
+Date "2019-07-11"
+Rev "1"
 Comp "Manuvr, Inc"
 Comment1 ""
 Comment2 ""
