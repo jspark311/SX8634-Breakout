@@ -1,0 +1,4 @@
+(sym_lib_table
+  (lib (name SX8634-Breakout)(type Legacy)(uri ${KIPRJMOD}/SX8634-Breakout.lib)(options "")(descr ""))
+  (lib (name IansParts)(type Legacy)(uri ${KIPRJMOD}/IansParts.lib)(options "")(descr ""))
+)
