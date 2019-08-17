@@ -25,6 +25,10 @@
   #error SX8634BitDiddler's operation is not compatible with CONFIG_SX8634_CONFIG_ON_FAITH.
 #endif
 
+#if !defined(MANUVR_STORAGE)
+  #error SX8634BitDiddler needs MANUVR_STORAGE to persist and load SPM blobs.
+#endif
+
 
 class SX8634BitDiddler : public EventReceiver, public ConsoleInterface {
   public:

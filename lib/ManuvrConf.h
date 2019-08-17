@@ -33,7 +33,7 @@ This is where definition of (application or device)-specific parameters ought to
 /* Driver selection */
 #define CONFIG_MANUVR_SX8634
   #define CONFIG_SX8634_PROVISIONING
-
+  #define CONFIG_SX8634_DEBUG
 
 // This is the string that identifies this Manuvrable to other Manuvrables. In MHB's case, this
 //   will select the mEngine.

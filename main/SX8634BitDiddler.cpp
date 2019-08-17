@@ -58,22 +58,49 @@ SX8634BitDiddler::~SX8634BitDiddler() {
 *******************************************************************************/
 
 int8_t SX8634BitDiddler::_platform_gpio_reconfigure() {
+  const uint8_t* const _addrs[8] = {&_GPIO0, &_GPIO1, &_GPIO2, &_GPIO3, &_GPIO4, &_GPIO5, &_GPIO6, &_GPIO7};
   local_log.concat("Putting platform GPIO into testing mode.\n");
+
+  for (uint8_t i = 0; i < 8; i++) {
+    GPIOMode pptm;
+    switch (touch.getGPIOMode(i)) {
+      case GPIOMode::ANALOG_OUT:
+      case GPIOMode::OUTPUT:
+        pptm = GPIOMode::INPUT;
+
+        break;
+      case GPIOMode::INPUT:
+      case GPIOMode::INPUT_PULLUP:
+      case GPIOMode::INPUT_PULLDOWN:
+        pptm = GPIOMode::OUTPUT;
+        break;
+
+      default:
+        pptm = GPIOMode::INPUT_PULLUP;
+        local_log.concatf("SX8634 pin %u has unhandled mode: %s\n", i, Platform::getPinModeStr(touch.getGPIOMode(i)));
+        break;
+    }
+    local_log.concatf("SX8634 pin %u has mode: %s.  Setting platform pin %u to mode: %s\n",
+      i,
+      Platform::getPinModeStr(touch.getGPIOMode(i)),
+      *_addrs[i],
+      Platform::getPinModeStr(pptm)
+    );
+    if (255 != *_addrs[i]) {  gpioDefine(*_addrs[i], pptm);  }
+  }
   flushLocalLog();
   return 0;
 }
 
 
+
 int8_t SX8634BitDiddler::_platform_gpio_make_safe() {
+  const uint8_t* const _addrs[8] = {&_GPIO0, &_GPIO1, &_GPIO2, &_GPIO3, &_GPIO4, &_GPIO5, &_GPIO6, &_GPIO7};
   local_log.concat("Putting platform GPIO into INPUT_PULLUP mode.\n");
-  if (255 != _GPIO0) {  gpioDefine(_GPIO0, GPIOMode::INPUT_PULLUP);  }
-  if (255 != _GPIO1) {  gpioDefine(_GPIO1, GPIOMode::INPUT_PULLUP);  }
-  if (255 != _GPIO2) {  gpioDefine(_GPIO2, GPIOMode::INPUT_PULLUP);  }
-  if (255 != _GPIO3) {  gpioDefine(_GPIO3, GPIOMode::INPUT_PULLUP);  }
-  if (255 != _GPIO4) {  gpioDefine(_GPIO4, GPIOMode::INPUT_PULLUP);  }
-  if (255 != _GPIO5) {  gpioDefine(_GPIO5, GPIOMode::INPUT_PULLUP);  }
-  if (255 != _GPIO6) {  gpioDefine(_GPIO6, GPIOMode::INPUT_PULLUP);  }
-  if (255 != _GPIO7) {  gpioDefine(_GPIO7, GPIOMode::INPUT_PULLUP);  }
+
+  for (uint8_t i = 0; i < 8; i++) {
+    if (255 != *_addrs[i]) {  gpioDefine(*_addrs[i], GPIOMode::INPUT_PULLUP);  }
+  }
   flushLocalLog();
   return 0;
 }
@@ -150,6 +177,7 @@ int8_t SX8634BitDiddler::notify(ManuvrMsg* active_event) {
 
     case MANUVR_MSG_USER_BUTTON_PRESS:
       if (0 == active_event->getArgAs(&val0)) {
+        local_log.concatf("Button press %u\n", val0);
         switch (val0) {
           case 0:
             break;
@@ -181,10 +209,21 @@ int8_t SX8634BitDiddler::notify(ManuvrMsg* active_event) {
       break;
 
     case MANUVR_MSG_USER_BUTTON_RELEASE:
+      if (0 == active_event->getArgAs(&val0)) {
+        local_log.concatf("Button release %u\n", val0);
+      }
+      return_value++;
+      break;
+
+    case MANUVR_MSG_GPI_CHANGE:
+      if (0 == active_event->getArgAs(&val0)) {
+        local_log.concatf("GPI%u is now state %u\n", val0, touch.getGPIOValue(val0));
+      }
       return_value++;
       break;
 
     case MANUVR_MSG_USER_SLIDER_VALUE:
+      local_log.concatf("Slider: %u\n", touch.sliderValue());
       return_value++;
       break;
 
@@ -220,8 +259,13 @@ static const ConsoleCommand console_cmds[] = {
   { "t3",   "Set SX8634 to SLEEP" },
   { "t4",   "Ping SX8634" },
   { "t5",   "Reset SX8634" },
-  { "t9",   "Force SX8634 re-init" },
-  { "g",    "Safety the platform GPIO pins" },
+  { "S",    "Save current SPM to local storage" },
+  { "D",    "Dump given SPM blob to console" },
+  { "D",    "Drop given SPM blob from local storage" },
+  { "L",    "Load stored SPM blob to SPM" },
+  { "l",    "List stored SPM blobs" },
+  { "c",    "Print an application config blob from the current SPM" },
+  { "G/g",  "Reconfigure/Safety the platform GPIO pins" },
   { "B",    "Burn selected config to SX8634 NVM" },
   { "O/o",  "Set/Clear GPIO pin on touch board" },
   { "p",    "Set the value of a GPP/GPO pin" }
@@ -236,13 +280,14 @@ uint SX8634BitDiddler::consoleGetCmds(ConsoleCommand** ptr) {
 
 void SX8634BitDiddler::consoleCmdProc(StringBuilder* input) {
   const char* str = (char *) input->position(0);
-  char c    = *str;
+  char c          = *str;
   bool arg0_given = false;
   bool arg1_given = false;
   bool arg2_given = false;
-  int arg0  = 0;
-  int arg1  = 0;
-  int arg2  = 0;
+  int8_t ret      = 0;
+  int arg0        = 0;
+  int arg1        = 0;
+  int arg2        = 0;
 
   if (input->count() > 1) {
     // If there is a second token, we proceed on good-faith that it's an int.
@@ -271,53 +316,128 @@ void SX8634BitDiddler::consoleCmdProc(StringBuilder* input) {
       }
       break;
 
+    /* SX8634 control options */
     case 'O':   // Set GPO pin
     case 'o':   // Clear GPO pin
-      if (arg0_given && (0 <= arg0) & (12 > arg0)) {
-        touch.setGPOValue(arg0, ('O' == c) ? 255 : 0);
+      if (arg0_given && (0 <= arg0) & (8 > arg0)) {
+        ret = touch.setGPOValue(arg0, ('O' == c) ? 255 : 0);
+        local_log.concatf("touch.setGPOValue(%u, %u) returns %d\n", arg0, (('O' == c) ? 255 : 0), ret);
+      }
+      else {
+        local_log.concatf("Usage: %c <SX8634 pin>", c);
       }
       break;
 
     case 'p':   // Set GPO pin, exactly
-      if (arg0_given && (0 <= arg0) & (12 > arg0)) {
-        if (arg1_given) {
-          touch.setGPOValue(arg0, arg1);
-        }
+      if (arg0_given && arg1_given && (0 <= arg0) & (8 > arg0)) {
+        ret = touch.setGPOValue(arg0, arg1);
+        local_log.concatf("touch.setGPOValue(%u, %u) returns %d\n", arg0, arg1, ret);
+      }
+      else {
+        local_log.concatf("Usage: %c <SX8634 pin> <desired value>", c);
       }
       break;
+
 
     case 't':   // Touch
       switch (arg0) {
         case 1:
-          touch.setMode(SX8634OpMode::ACTIVE);
+          ret = touch.setMode(SX8634OpMode::ACTIVE);
+          local_log.concat("touch.setMode(ACTIVE)");
           break;
         case 2:
-          touch.setMode(SX8634OpMode::DOZE);
+          ret = touch.setMode(SX8634OpMode::DOZE);
+          local_log.concat("touch.setMode(DOZE)");
           break;
         case 3:
-          touch.setMode(SX8634OpMode::SLEEP);
+          ret = touch.setMode(SX8634OpMode::SLEEP);
+          local_log.concat("touch.setMode(SLEEP)");
           break;
         case 4:
-          touch.ping();
+          ret = touch.ping();
+          local_log.concat("touch.ping()");
           break;
         case 5:
-          touch.reset();
-          break;
-        case 9:
-          touch.init();
+          ret = touch.reset();
+          local_log.concat("touch.reset()");
           break;
         default:
           touch.printDebug(&local_log);
           break;
       }
+      if (0 != ret) {
+        local_log.concatf(" operation returns %d\n", ret);
+      }
+      else {
+        local_log.concat("\n");
+      }
       break;
 
     case 'B':   // Burn current config to NVM
-      touch.burn_nvm();
+      ret = touch.burn_nvm();
+      local_log.concatf("burn_nvm() returns %d\n", ret);
       break;
 
+    /* Options involving platform GPIO */
+    case 'G':   // Reconfigure all the platform GPIO pins.
     case 'g':   // Safety all the platform GPIO pins.
-      _platform_gpio_make_safe();
+      ret = ('G' == c) ? _platform_gpio_reconfigure() : _platform_gpio_make_safe();
+      local_log.concatf("Platform GPIO operation returns %d\n", ret);
+      break;
+
+
+    /* Options to save, load, and process SPM blobs from platform storage. */
+    case 'S':  // Save current SPM to local storage
+      if (arg0_given) {
+        const char* name = input->position(1);
+        Storage* store = platform.fetchStorage("");
+        if (nullptr != store) {
+        }
+      }
+      else {
+        local_log.concatf("Usage: %c <blob name>", c);
+      }
+      break;
+
+    case 'd':  // Dump given SPM blob to console
+      if (arg0_given) {
+      }
+      else {
+        local_log.concatf("Usage: %c <blob index>", c);
+      }
+      break;
+
+    case 'D':  // Drop given SPM blob from local storage
+      if (arg0_given) {
+      }
+      else {
+        local_log.concatf("Usage: %c <blob index>", c);
+      }
+      break;
+
+    case 'L':  // Load stored SPM blob to SPM
+      if (arg0_given) {
+      }
+      else {
+        local_log.concatf("Usage: %c <blob index>", c);
+      }
+      break;
+
+    case 'l':  // List stored SPM blobs
+      break;
+
+    case 'c':  // Print an application config blob from the current SPM.
+      {
+        uint8_t buf[128];
+        memset(buf, 0, 128);
+        if (0 == touch.copy_spm_to_buffer(buf)) {
+          if (0 == SX8634::render_stripped_spm(buf)) {
+            local_log.concatf("Application config blob:%s\n", PRINT_DIVIDER_1_STR);
+            StringBuilder::printBuffer(&local_log, buf, 97, "");
+            local_log.concat("\n\n");
+          }
+        }
+      }
       break;
 
     default:
