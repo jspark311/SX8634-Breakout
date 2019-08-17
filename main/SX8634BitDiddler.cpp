@@ -224,6 +224,7 @@ static const ConsoleCommand console_cmds[] = {
   { "g",    "Safety the platform GPIO pins" },
   { "B",    "Burn selected config to SX8634 NVM" },
   { "O/o",  "Set/Clear GPIO pin on touch board" },
+  { "p",    "Set the value of a GPP/GPO pin" }
 };
 
 
@@ -270,10 +271,18 @@ void SX8634BitDiddler::consoleCmdProc(StringBuilder* input) {
       }
       break;
 
-    case 'O':   // Set GPIO pin
-    case 'o':   // Clear GPIO pin
+    case 'O':   // Set GPO pin
+    case 'o':   // Clear GPO pin
       if (arg0_given && (0 <= arg0) & (12 > arg0)) {
-        touch.setGPIOState(arg0, ('O' == c) ? 1 : 0);
+        touch.setGPOValue(arg0, ('O' == c) ? 255 : 0);
+      }
+      break;
+
+    case 'p':   // Set GPO pin, exactly
+      if (arg0_given && (0 <= arg0) & (12 > arg0)) {
+        if (arg1_given) {
+          touch.setGPOValue(arg0, arg1);
+        }
       }
       break;
 
