@@ -1,6 +1,24 @@
 # SX8634-Breakout
 The repository for the SX8634 breakout board
 
+------------------------
+#### What is in this repository:
+**./doc**:  Location for documentation.
+
+**./kicad**:  Hardware design files.
+
+**./lib**:  Third-party libraries.
+
+**./main**:  The optional provisioning program.
+
+**./downloadDeps.sh**   A script to download dependencies.
+
+
+
+The provisioning program is intended to be run on an ESP32 devkit-C or comparable. It can be built by doing...
+
+    ./downloadDeps.sh
+    make
 
 ------------------------
 

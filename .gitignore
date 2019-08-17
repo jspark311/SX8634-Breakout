@@ -25,5 +25,15 @@ _autosave-*
 *.xml
 *.csv
 
+# Gerber exports
+kicad/SX8634-Breakout/
+kicad/SX8634-Breakout.zip
+
+# Library links and build artifacts
+lib/ManuvrOS
+build
+sdkconfig.defaults
+sdkconfig.old
+
 # Filesystem artifacts
 .directory
