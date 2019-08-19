@@ -59,12 +59,18 @@ class SX8634BitDiddler : public EventReceiver, public ConsoleInterface {
     const uint8_t _GPIO5;
     const uint8_t _GPIO6;
     const uint8_t _GPIO7;
+    StringBuilder _blob_index;
     SX8634 touch;
     ManuvrMsg _msg_service_request;
 
     /* GPIO and automated testing functions */
     int8_t _platform_gpio_reconfigure();
     int8_t _platform_gpio_make_safe();
+
+    int8_t _load_blob_by_name(const char*, uint8_t*);
+    int8_t _save_blob_by_name(const char*, uint8_t*);
+    int8_t _load_blob_directory();
+    int8_t _save_blob_directory();
 };
 
 

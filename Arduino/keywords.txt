@@ -1,0 +1,27 @@
+########################################
+# Syntax Coloring Map For Arduino-SX8634
+########################################
+
+########################################
+# Datatypes (KEYWORD1)
+########################################
+
+SX8634	KEYWORD1
+
+########################################
+# Methods and Functions (KEYWORD2)
+########################################
+
+buttonPressed   KEYWORD2
+buttonReleased  KEYWORD2
+setGPIOMode     KEYWORD2
+getGPIOMode     KEYWORD2
+setGPOValue     KEYWORD2
+getGPIOValue    KEYWORD2
+
+
+########################################
+# Constants (LITERAL1)
+########################################
+
+SX8634_DEFAULT_I2C_ADDR  LITERAL1

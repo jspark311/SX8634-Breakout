@@ -3,15 +3,17 @@ The repository for the SX8634 breakout board
 
 ------------------------
 #### What is in this repository:
-**./doc**:  Location for documentation.
+**./doc**:  Location for documentation
 
-**./kicad**:  Hardware design files.
+**./kicad**:  Hardware design files
 
-**./lib**:  Third-party libraries.
+**./Arduino**:  Arduino driver
 
-**./main**:  The optional provisioning program.
+**./lib**:  Third-party libraries
 
-**./downloadDeps.sh**   A script to download dependencies.
+**./main**:  The optional provisioning program
+
+**./downloadDeps.sh**   A script to download dependencies
 
 
 

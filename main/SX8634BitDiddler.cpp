@@ -390,8 +390,12 @@ void SX8634BitDiddler::consoleCmdProc(StringBuilder* input) {
     case 'S':  // Save current SPM to local storage
       if (arg0_given) {
         const char* name = input->position(1);
-        Storage* store = platform.fetchStorage("");
-        if (nullptr != store) {
+        uint8_t buf[128];
+        memset(buf, 0, 128);
+        if (0 == touch.copy_spm_to_buffer(buf)) {
+          if (0 == _save_blob_by_name(name, buf)) {
+            local_log.concatf("Saved SPM to blob \"%s\".\n", name);
+          }
         }
       }
       else {
@@ -401,9 +405,15 @@ void SX8634BitDiddler::consoleCmdProc(StringBuilder* input) {
 
     case 'd':  // Dump given SPM blob to console
       if (arg0_given) {
+        const char* name = input->position(1);
+        uint8_t buf[128];
+        if (0 == _load_blob_by_name(name, buf)) {
+          StringBuilder::printBuffer(&local_log, buf, 128, "");
+          local_log.concat("\n\n");
+        }
       }
       else {
-        local_log.concatf("Usage: %c <blob index>", c);
+        local_log.concatf("Usage: %c <blob name>", c);
       }
       break;
 
@@ -411,19 +421,30 @@ void SX8634BitDiddler::consoleCmdProc(StringBuilder* input) {
       if (arg0_given) {
       }
       else {
-        local_log.concatf("Usage: %c <blob index>", c);
+        local_log.concatf("Usage: %c <blob name>", c);
       }
       break;
 
     case 'L':  // Load stored SPM blob to SPM
       if (arg0_given) {
+        const char* name = input->position(1);
+        uint8_t buf[128];
+        if (0 == _load_blob_by_name(name, buf)) {
+          if (0 == touch.load_spm_from_buffer(buf)) {
+            local_log.concatf("SPM loaded from stored blob \"%s\".", name);
+          }
+        }
       }
       else {
-        local_log.concatf("Usage: %c <blob index>", c);
+        local_log.concatf("Usage: %c <blob name>", c);
       }
       break;
 
     case 'l':  // List stored SPM blobs
+      local_log.concatf("Existing SPM blobs:%s\n", PRINT_DIVIDER_1_STR);
+      for (uint8_t i = 0; i < _blob_index.count(); i++) {
+        local_log.concatf("\t %u: %s\n", i, _blob_index.position(i));
+      }
       break;
 
     case 'c':  // Print an application config blob from the current SPM.
@@ -443,7 +464,128 @@ void SX8634BitDiddler::consoleCmdProc(StringBuilder* input) {
     default:
       break;
   }
-
   flushLocalLog();
 }
 #endif  //MANUVR_CONSOLE_SUPPORT
+
+
+/*
+* buf is assumed to be 128-bytes long.
+*/
+int8_t SX8634BitDiddler::_load_blob_by_name(const char* name, uint8_t* buf) {
+  int8_t ret = -3;
+  int len = strlen(name);
+  if ((3 < len) && (16 > len)) {
+    ret++;
+    Storage* store = platform.fetchStorage("");
+    if (nullptr != store) {
+      ret++;
+      int rlen = store->persistentRead(name, buf, 128, 0);
+
+      if (128 == rlen) {
+        ret++;
+      }
+      else {
+        local_log.concatf("Trying to read SPM blob \"%s\" was the wrong size (%d).\n", name, rlen);
+      }
+    }
+    else {
+      local_log.concat("No storage available.\n");
+    }
+  }
+  else {
+    local_log.concat("blob name must be between 4 and 15 characters.\n");
+  }
+  return ret;
+}
+
+
+/*
+* buf is assumed to be 128-bytes long.
+*/
+int8_t SX8634BitDiddler::_save_blob_by_name(const char* name, uint8_t* buf) {
+  int8_t ret = -3;
+  int len = strlen(name);
+  if ((3 < len) && (16 > len)) {
+    ret++;
+    Storage* store = platform.fetchStorage("");
+    if (nullptr != store) {
+      ret++;
+      int rwri = store->persistentWrite(name, buf, 128, 0);
+
+      if (128 == rwri) {
+        ret++;
+      }
+      else {
+        local_log.concatf("Trying to write SPM blob \"%s\" was the wrong size (%d).\n", name, rwri);
+      }
+    }
+    else {
+      local_log.concat("No storage available.\n");
+    }
+  }
+  else {
+    local_log.concat("blob name must be between 4 and 15 characters.\n");
+  }
+  return ret;
+}
+
+
+/*
+* buf is assumed to be 128-bytes long.
+*/
+int8_t SX8634BitDiddler::_load_blob_directory() {
+  int8_t ret = -2;
+  Storage* store = platform.fetchStorage("");
+  if (nullptr != store) {
+    ret++;
+    uint8_t buf[1024];
+    memset(buf, 0, sizeof(buf));
+    int rlen = store->persistentRead("idx", buf, 128, 0);
+
+    if (0 < rlen) {
+      ret++;
+      _blob_index.clear();
+      _blob_index.concat(buf, rlen);
+      _blob_index.split("^!^");
+    }
+    else {
+      local_log.concat("Tried to read SPM blob index and failed.\n");
+    }
+  }
+  else {
+    local_log.concat("No storage available.\n");
+  }
+  return ret;
+}
+
+
+/*
+* buf is assumed to be 128-bytes long.
+*/
+int8_t SX8634BitDiddler::_save_blob_directory() {
+  int8_t ret = -2;
+  Storage* store = platform.fetchStorage("");
+  if (nullptr != store) {
+    ret++;
+    uint8_t buf[1024];
+    memset(buf, 0, sizeof(buf));
+    if (0 < _blob_index.count()) {
+      _blob_index.implode("^!^");
+    }
+    int wlen = _blob_index.length();
+    int rlen = store->persistentWrite("idx", buf, wlen, 0);
+    _blob_index.split("^!^");
+
+    if (rlen == wlen) {
+      ret++;
+    }
+    else {
+      local_log.concat("Tried to write SPM blob index and failed.\n");
+    }
+  }
+  else {
+    local_log.concat("No storage available.\n");
+  }
+  return ret;
+}
