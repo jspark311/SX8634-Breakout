@@ -1,4 +1,5 @@
 EESchema Schematic File Version 4
+LIBS:SX8634-Breakout-cache
 EELAYER 26 0
 EELAYER END
 $Descr User 8661 5906
@@ -52,9 +53,9 @@ F 0 "C1" H 1300 2550 40  0000 L CNN
 F 1 "1nF" H 1306 2365 40  0000 L CNN
 F 2 "Capacitor_SMD:C_0603_1608Metric" V 1250 2600 30  0001 C CNN
 F 3 "~" H 1300 2450 60  0000 C CNN
-F 4 "CGB3B1X7R1A105K055AC" V -200 -10600 39  0001 C CNN "Manu_Number"
-F 5 "TDK Corporation" V -200 -10600 60  0001 C CNN "Manu_Name"
-F 6 "445-13228-1-ND" V 1300 -10750 39  0001 C CNN "Digikey_Number"
+F 4 "CL10B102KB8NNNC" V -200 -10600 39  0001 C CNN "Manu_Number"
+F 5 "Samsung Electro-Mechanics" V -200 -10600 60  0001 C CNN "Manu_Name"
+F 6 "1276-1018-1-ND" V 1300 -10750 39  0001 C CNN "Digikey_Number"
 	1    1300 2450
 	0    1    1    0   
 $EndComp
@@ -66,20 +67,6 @@ Wire Wire Line
 	1150 2600 1150 2450
 Wire Wire Line
 	1150 2450 1200 2450
-$Comp
-L IansParts:CAPARRAY_4 CARY1
-U 1 1 5D2BB127
-P 3000 3400
-F 0 "CARY1" H 3000 2800 60  0000 C CNN
-F 1 "100nF" H 3000 3950 39  0000 C CNN
-F 2 "CapArray_CKCL44" H 3000 3400 60  0001 C CNN
-F 3 "" H 3000 3400 60  0000 C CNN
-F 4 "CKCL44X5R0J104M085AA" H 3000 3400 60  0001 C CNN "Manu_Number"
-F 5 "TDK Corporation" H 3000 3400 60  0001 C CNN "Manu_Name"
-F 6 "445-1838-1-ND" H 3000 3400 60  0001 C CNN "Digikey_Number"
-	1    3000 3400
-	0    -1   1    0   
-$EndComp
 Wire Wire Line
 	2150 3000 2150 3050
 Wire Wire Line
@@ -109,7 +96,7 @@ L IansParts:IANS_CAP_POLARIZED C2
 U 1 1 5D371A72
 P 1750 3500
 F 0 "C2" V 1650 3400 39  0000 C CNN
-F 1 "1uF" V 1800 3400 39  0000 C CNN
+F 1 "100uF" V 1800 3400 39  0000 C CNN
 F 2 "Capacitor_SMD:C_0805_2012Metric" H 1750 3500 60  0001 C CNN
 F 3 "" H 1750 3500 60  0000 C CNN
 F 4 "F950J107MPAAQ2" V 1750 3500 60  0001 C CNN "Manu_Number"
@@ -129,12 +116,12 @@ Text Label 2600 1450 0    39   ~ 0
 $Comp
 L Connector:Conn_01x12_Male J1
 U 1 1 5D42BD1A
-P 5050 1500
-F 0 "J1" V 5000 950 50  0000 C CNN
-F 1 "Conn_01x12_Male" V 5000 1500 50  0000 C CNN
-F 2 "woose-tracker:Cap-Touch_pattern_compact" H 5050 1500 50  0001 C CNN
-F 3 "~" H 5050 1500 50  0001 C CNN
-	1    5050 1500
+P 5900 1650
+F 0 "J1" V 5850 1100 50  0000 C CNN
+F 1 "Conn_01x12_Male" V 5850 1650 50  0000 C CNN
+F 2 "woose-tracker:Cap-Touch_pattern_compact" H 5900 1650 50  0001 C CNN
+F 3 "~" H 5900 1650 50  0001 C CNN
+	1    5900 1650
 	1    0    0    -1  
 $EndComp
 Wire Wire Line
@@ -220,39 +207,12 @@ Text Label 3900 1400 2    39   ~ 0
 VCC
 Wire Wire Line
 	1600 3150 1750 3150
-Text Label 3050 3100 2    39   ~ 0
-VCC
-Wire Wire Line
-	2900 3150 2900 3100
-Wire Wire Line
-	2900 3100 3150 3100
-Wire Wire Line
-	3150 3100 3150 3150
 Wire Wire Line
 	1750 3750 2650 3750
 Wire Wire Line
-	2600 2500 3400 2500
-Wire Wire Line
-	3400 2500 3400 3150
-Wire Wire Line
-	2650 3150 2650 2600
+	2650 3450 2650 2600
 Wire Wire Line
 	2650 3650 2650 3750
-Connection ~ 2650 3750
-Wire Wire Line
-	3400 3750 3400 3650
-Wire Wire Line
-	2650 3750 2900 3750
-Wire Wire Line
-	3150 3650 3150 3750
-Connection ~ 3150 3750
-Wire Wire Line
-	3150 3750 3400 3750
-Wire Wire Line
-	2900 3650 2900 3750
-Connection ~ 2900 3750
-Wire Wire Line
-	2900 3750 3150 3750
 $Comp
 L Connector_Generic:Conn_01x06 J2
 U 1 1 5D564CCC
@@ -275,29 +235,29 @@ F 3 "~" H 4100 2050 50  0001 C CNN
 	1    4100 2050
 	1    0    0    -1  
 $EndComp
-Text Label 5250 1500 0    39   ~ 0
+Text Label 6100 1650 0    39   ~ 0
 cap0
-Text Label 5250 1000 0    39   ~ 0
+Text Label 6100 1150 0    39   ~ 0
 cap1
-Text Label 5250 1400 0    39   ~ 0
+Text Label 6100 1550 0    39   ~ 0
 cap2
-Text Label 5250 1300 0    39   ~ 0
+Text Label 6100 1450 0    39   ~ 0
 cap3
-Text Label 5250 1100 0    39   ~ 0
+Text Label 6100 1250 0    39   ~ 0
 cap4
-Text Label 5250 1200 0    39   ~ 0
+Text Label 6100 1350 0    39   ~ 0
 cap5
-Text Label 5250 2100 0    39   ~ 0
+Text Label 6100 2250 0    39   ~ 0
 cap6
-Text Label 5250 2000 0    39   ~ 0
+Text Label 6100 2150 0    39   ~ 0
 cap7
-Text Label 5250 1900 0    39   ~ 0
+Text Label 6100 2050 0    39   ~ 0
 cap8
-Text Label 5250 1800 0    39   ~ 0
+Text Label 6100 1950 0    39   ~ 0
 cap9
-Text Label 5250 1700 0    39   ~ 0
+Text Label 6100 1850 0    39   ~ 0
 cap10
-Text Label 5250 1600 0    39   ~ 0
+Text Label 6100 1750 0    39   ~ 0
 cap11
 Text Label 1500 1150 2    39   ~ 0
 cap0
@@ -334,4 +294,43 @@ F 3 "" H 2100 2150 39  0001 C CNN
 	1    2050 1950
 	1    0    0    -1  
 $EndComp
+$Comp
+L Device:C_Small C3
+U 1 1 5D5C3692
+P 2650 3550
+F 0 "C3" H 2650 3650 40  0000 L CNN
+F 1 "100nF" H 2656 3465 40  0000 L CNN
+F 2 "Capacitor_SMD:C_0603_1608Metric" V 2600 3700 30  0001 C CNN
+F 3 "~" H 2650 3550 60  0000 C CNN
+F 4 "CL10B104KCBNNNC" V 1150 -9500 39  0001 C CNN "Manu_Number"
+F 5 "Samsung Electro-Mechanics" V 1150 -9500 60  0001 C CNN "Manu_Name"
+F 6 "1276-6807-1-ND‎" V 2650 -9650 39  0001 C CNN "Digikey_Number"
+	1    2650 3550
+	-1   0    0    1   
+$EndComp
+$Comp
+L Device:C_Small C4
+U 1 1 5D5C3E47
+P 2900 3550
+F 0 "C4" H 2900 3650 40  0000 L CNN
+F 1 "100nF" H 2906 3465 40  0000 L CNN
+F 2 "Capacitor_SMD:C_0603_1608Metric" V 2850 3700 30  0001 C CNN
+F 3 "~" H 2900 3550 60  0000 C CNN
+F 4 "CL10B104KCBNNNC" V 1400 -9500 39  0001 C CNN "Manu_Number"
+F 5 "Samsung Electro-Mechanics" V 1400 -9500 60  0001 C CNN "Manu_Name"
+F 6 "1276-6807-1-ND‎" V 2900 -9650 39  0001 C CNN "Digikey_Number"
+	1    2900 3550
+	-1   0    0    1   
+$EndComp
+Wire Wire Line
+	2900 3650 2900 3750
+Wire Wire Line
+	2900 3750 2650 3750
+Connection ~ 2650 3750
+Wire Wire Line
+	2900 3450 2900 2500
+Wire Wire Line
+	2600 2500 2900 2500
+Text Notes 5300 1000 0    50   ~ 0
+These are the capacitive touch pads.
 $EndSCHEMATC
