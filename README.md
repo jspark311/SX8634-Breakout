@@ -1,11 +1,16 @@
 # SX8634-Breakout
-The repository for the SX8634 breakout board
+
+A breakout board for Semtech's SX8634
+
+#### [Hackaday.io Page](https://hackaday.io/project/166853-sx8634-touch-sensor-breakout)
 
 ------------------------
-#### What is in this repository:
+
+### What is in this repository:
+
 **./doc**:  Location for documentation
 
-**./kicad**:  Hardware design files
+**./KiCAD**:  Hardware design files
 
 **./Arduino**:  Arduino driver
 
@@ -16,11 +21,19 @@ The repository for the SX8634 breakout board
 **./downloadDeps.sh**   A script to download dependencies
 
 
+------------------------
+
+### Building the provisioning program
 
 The provisioning program is intended to be run on an ESP32 devkit-C or comparable. It can be built by doing...
 
     ./downloadDeps.sh
     make
+    
+Then, flash it to the ESP32 board....
+
+    make flash monitor
+    
 
 ------------------------
 
@@ -29,4 +42,5 @@ Front | Back
 ![Front](osh-render-front.png)  | ![Back](osh-render-back.png)
 
 
-<a href="https://oshpark.com/shared_projects/8pKgOCZn"><img src="https://oshpark.com/assets/badge-5b7ec47045b78aef6eb9d83b3bac6b1920de805e9a0c227658eac6e19a045b9c.png" alt="Order from OSH Park"></img></a>
+[<img src="https://oshpark.com/assets/badge-5b7ec47045b78aef6eb9d83b3bac6b1920de805e9a0c227658eac6e19a045b9c.png" alt="Order from OSH Park">](https://oshpark.com/shared_projects/8pKgOCZn)
+

@@ -26,8 +26,8 @@ _autosave-*
 *.csv
 
 # Gerber exports
-kicad/SX8634-Breakout/
-kicad/SX8634-Breakout.zip
+KiCAD/SX8634-Breakout/
+KiCAD/SX8634-Breakout.zip
 
 # Library links and build artifacts
 lib/ManuvrOS
