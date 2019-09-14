@@ -1,9 +1,34 @@
+/*
+File:   SX8634.h
+Author: J. Ian Lindsay
+Date:   2019.08.10
+
+Copyright 2019 Manuvr, Inc
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+*/
+
+
 #include <inttypes.h>
 #include <stdint.h>
-#include <Platform/Peripherals/I2C/I2CAdapter.h>
+#include <Arduino.h>
+#include <Wire.h>
 
 #ifndef __SX8634_DRIVER_H__
 #define __SX8634_DRIVER_H__
+
+#define PRINT_DIVIDER_1_STR "\n---------------------------------------------------\n"
 
 #if defined(CONFIG_SX8634_PROVISIONING) & defined(CONFIG_SX8634_CONFIG_ON_FAITH)
   #error CONFIG_SX8634_PROVISIONING and CONFIG_SX8634_CONFIG_ON_FAITH cannot be defined simultaneously.
@@ -202,15 +227,18 @@ enum class SX8634_FSM : uint8_t {
 };
 
 
-class SX8634GPIOConf {
-  public:
-    // GPIOMode::ANALOG_OUT will be construed as the PWM mode.
-    SX8634GPIOConf(GPIOMode mode, uint8_t boot_val);
-
-  private:
-    GPIOMode _mode;
-    uint8_t  _default_val;
+enum class GPIOMode : uint8_t {
+  SX_IN           = 0,
+  SX_OUT          = 1,
+  SX_OUT_OD       = 2,
+  SX_IN_PULLUP    = 3,
+  SX_IN_PULLDOWN  = 4,
+  SX_ANA_OUT      = 5,
+  SX_ANA_IN       = 6,
+  SX_UNINIT       = 7
 };
+
+
 
 
 /*******************************************************************************
@@ -233,7 +261,6 @@ class SX8634Opts {
       reset_pin(o->reset_pin),
       irq_pin(o->irq_pin),
       conf(o->conf) {};
-
 
 
     /**
@@ -294,7 +321,7 @@ class SX8634Opts {
 *******************************************************************************/
 
 
-class SX8634 : public I2CDevice {
+class SX8634 {
   public:
     SX8634(const SX8634Opts*);
     ~SX8634();
@@ -302,13 +329,14 @@ class SX8634 : public I2CDevice {
     int8_t  reset();
     inline int8_t init() {     return reset();     };
 
-    /* Overrides from I2CDevice... */
-    int8_t io_op_callahead(BusOp*);
-    int8_t io_op_callback(BusOp*);
-    void printDebug(StringBuilder*);
+    /* Debug functions */
+    void printDebug();
+    void printOverview();
+    void printSPMShadow();
+    void printGPIO();
 
     int8_t setMode(SX8634OpMode);
-    inline SX8634OpMode operationalMode() {  return _mode; };
+    inline SX8634OpMode operationalMode() { return _mode; };
 
     inline bool deviceFound() {  return _sx8634_flag(SX8634_FLAG_DEV_FOUND);  };
     inline uint16_t sliderValue() {         return _slider_val;               };
@@ -323,19 +351,18 @@ class SX8634 : public I2CDevice {
 
     /* Class service functions */
     int8_t read_irq_registers();              // Service an IRQ.
+    int8_t poll();                            // Check for changes.
     int8_t ping();                            // Pings the device.
 
+    int8_t  copy_spm_to_buffer(uint8_t*);
+    int8_t  load_spm_from_buffer(uint8_t*);
     #if defined(CONFIG_SX8634_PROVISIONING)
       int8_t  burn_nvm();
-      int8_t  copy_spm_to_buffer(uint8_t*);
-      int8_t  load_spm_from_buffer(uint8_t*);
-
-      static int8_t render_stripped_spm(uint8_t*);
     #endif  // CONFIG_SX8634_PROVISIONING
 
-
-
+    static int8_t render_stripped_spm(uint8_t*);
     static const char* getModeStr(SX8634OpMode);
+
 
 
   private:
@@ -343,17 +370,15 @@ class SX8634 : public I2CDevice {
     uint16_t _flags         = 0;
     uint16_t _slider_val    = 0;
     uint16_t _buttons       = 0;
-    SX8634OpMode _mode  = SX8634OpMode::RESERVED;
-    SX8634_FSM   _fsm   = SX8634_FSM::NO_INIT;
+    uint8_t  _pwm_buffer[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    uint8_t  _gpo_levels[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    uint8_t  _gpi_levels    = 0;
     uint8_t  _compensations = 0;
     uint8_t  _nvm_burns     = 0;
-    uint8_t  _gpi_levels    = 0;
-    uint8_t  _gpo_levels[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-    uint8_t  _pwm_buffer[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-
-    uint8_t  _registers[16];     // Register shadows
+    SX8634OpMode _mode      = SX8634OpMode::RESERVED;
+    SX8634_FSM   _fsm       = SX8634_FSM::NO_INIT;
+    uint8_t  _registers[19];     // Register shadows
     uint8_t  _spm_shadow[128];   // SPM shadow
-    ManuvrMsg _slider_msg;
 
     /* Flag manipulation inlines */
     inline uint16_t _sx8634_flags() {                return _flags;            };
@@ -401,6 +426,10 @@ class SX8634 : public I2CDevice {
     /* Accessors to the finite state-machine position. */
     inline void       _set_fsm_position(SX8634_FSM x) {  _fsm = x;        };
     inline SX8634_FSM _get_fsm_position() {              return _fsm;     };
+
+    /* I2C functions */
+    int8_t _read_device(uint8_t reg, uint8_t* buf, uint8_t len);
+    int8_t _write_device(uint8_t reg, uint8_t* buf, uint8_t len);
 
     static const char* getFSMStr(SX8634_FSM);
     static const char* getSMStr();
