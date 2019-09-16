@@ -19,6 +19,41 @@ const MessageTypeDef message_defs_list[] = {
 };
 
 
+void sx_gpio_0_isr() {
+  Kernel::log("SX GPIO0 toggled\n");
+}
+
+void sx_gpio_1_isr() {
+  Kernel::log("SX GPIO1 toggled\n");
+}
+
+void sx_gpio_2_isr() {
+  Kernel::log("SX GPIO2 toggled\n");
+}
+
+void sx_gpio_3_isr() {
+  Kernel::log("SX GPIO3 toggled\n");
+}
+
+void sx_gpio_4_isr() {
+  Kernel::log("SX GPIO4 toggled\n");
+}
+
+void sx_gpio_5_isr() {
+  Kernel::log("SX GPIO5 toggled\n");
+}
+
+void sx_gpio_6_isr() {
+  Kernel::log("SX GPIO6 toggled\n");
+}
+
+void sx_gpio_7_isr() {
+  Kernel::log("SX GPIO7 toggled\n");
+}
+
+
+
+
 /*******************************************************************************
 *   ___ _              ___      _ _              _      _
 *  / __| |__ _ ______ | _ ) ___(_) |___ _ _ _ __| |__ _| |_ ___
@@ -31,16 +66,17 @@ const MessageTypeDef message_defs_list[] = {
 /*
 * Constructor.
 */
-SX8634BitDiddler::SX8634BitDiddler(I2CAdapter* i2c, uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3, uint8_t g4, uint8_t g5, uint8_t g6, uint8_t g7, const SX8634Opts* sx8634_o)
-    : EventReceiver("SX8634BitDiddler"),
+SX8634BitDiddler::SX8634BitDiddler(I2CAdapter* i2c, uint8_t _pwr, uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3, uint8_t g4, uint8_t g5, uint8_t g6, uint8_t g7, const SX8634Opts* sx8634_o)
+    : EventReceiver("SX8634BitDiddler"), _PWR_PIN(_pwr),
       _GPIO0(g0), _GPIO1(g1), _GPIO2(g2), _GPIO3(g3),
       _GPIO4(g4), _GPIO5(g5), _GPIO6(g6), _GPIO7(g7),
       touch(sx8634_o) {
   INSTANCE = this;
   _platform_gpio_make_safe();
+  gpioDefine(_PWR_PIN, GPIOMode::OUTPUT);
+  setPin(_PWR_PIN, true);       // Turn on power to the touch board.
   int mes_count = sizeof(message_defs_list) / sizeof(MessageTypeDef);
   ManuvrMsg::registerMessages(message_defs_list, mes_count);
-
   i2c->addSlaveDevice((I2CDevice*) &touch);
 }
 
@@ -67,7 +103,6 @@ int8_t SX8634BitDiddler::_platform_gpio_reconfigure() {
       case GPIOMode::ANALOG_OUT:
       case GPIOMode::OUTPUT:
         pptm = GPIOMode::INPUT;
-
         break;
       case GPIOMode::INPUT:
       case GPIOMode::INPUT_PULLUP:
@@ -77,7 +112,6 @@ int8_t SX8634BitDiddler::_platform_gpio_reconfigure() {
 
       default:
         pptm = GPIOMode::INPUT_PULLUP;
-        local_log.concatf("SX8634 pin %u has unhandled mode: %s\n", i, Platform::getPinModeStr(touch.getGPIOMode(i)));
         break;
     }
     local_log.concatf("SX8634 pin %u has mode: %s.  Setting platform pin %u to mode: %s\n",
@@ -86,7 +120,37 @@ int8_t SX8634BitDiddler::_platform_gpio_reconfigure() {
       *_addrs[i],
       Platform::getPinModeStr(pptm)
     );
-    if (255 != *_addrs[i]) {  gpioDefine(*_addrs[i], pptm);  }
+    if (255 != *_addrs[i]) {
+      gpioDefine(*_addrs[i], pptm);
+      if (GPIOMode::INPUT == pptm) {
+        switch (i) {
+          case 0:
+            setPinFxn(*_addrs[i], CHANGE, sx_gpio_0_isr);
+            break;
+          case 1:
+            setPinFxn(*_addrs[i], CHANGE, sx_gpio_1_isr);
+            break;
+          case 2:
+            setPinFxn(*_addrs[i], CHANGE, sx_gpio_2_isr);
+            break;
+          case 3:
+            setPinFxn(*_addrs[i], CHANGE, sx_gpio_3_isr);
+            break;
+          case 4:
+            setPinFxn(*_addrs[i], CHANGE, sx_gpio_4_isr);
+            break;
+          case 5:
+            setPinFxn(*_addrs[i], CHANGE, sx_gpio_5_isr);
+            break;
+          case 6:
+            setPinFxn(*_addrs[i], CHANGE, sx_gpio_6_isr);
+            break;
+          case 7:
+            setPinFxn(*_addrs[i], CHANGE, sx_gpio_7_isr);
+            break;
+        }
+      }
+    }
   }
   flushLocalLog();
   return 0;
@@ -99,7 +163,10 @@ int8_t SX8634BitDiddler::_platform_gpio_make_safe() {
   local_log.concat("Putting platform GPIO into INPUT_PULLUP mode.\n");
 
   for (uint8_t i = 0; i < 8; i++) {
-    if (255 != *_addrs[i]) {  gpioDefine(*_addrs[i], GPIOMode::INPUT_PULLUP);  }
+    if (255 != *_addrs[i]) {
+      gpioDefine(*_addrs[i], GPIOMode::INPUT_PULLUP);
+      unsetPinIRQ(*_addrs[i]);
+    }
   }
   flushLocalLog();
   return 0;
@@ -253,6 +320,7 @@ void SX8634BitDiddler::printDebug(StringBuilder* output) {
 
 static const ConsoleCommand console_cmds[] = {
   { "i",    "Info" },
+  { "X/x",  "Enable/Disable power to the connected touch board" },
   { "t",    "Touch board info" },
   { "t1",   "Set SX8634 to ACTIVE" },
   { "t2",   "Set SX8634 to DOZE" },
@@ -309,11 +377,25 @@ void SX8634BitDiddler::consoleCmdProc(StringBuilder* input) {
     case 'i':   // Debug prints.
       switch (arg0) {
         case 1:
+          touch.printGPIO(&local_log);
+          break;
+        case 2:
+          touch.printOverview(&local_log);
+          break;
+        case 3:
+          touch.printSPMShadow(&local_log);
           break;
         default:
           printDebug(&local_log);
           break;
       }
+      break;
+
+    /* Jig control options */
+    case 'X':   // Power control
+    case 'x':   // Power control
+      setPin(_PWR_PIN, 'X' == c);
+      local_log.concatf("Power %sabled.\n", (('X' == c) ? "En" : "Dis"));
       break;
 
     /* SX8634 control options */

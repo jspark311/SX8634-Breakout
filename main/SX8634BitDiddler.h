@@ -32,7 +32,7 @@
 
 class SX8634BitDiddler : public EventReceiver, public ConsoleInterface {
   public:
-    SX8634BitDiddler(I2CAdapter*, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, const SX8634Opts*);
+    SX8634BitDiddler(I2CAdapter*, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, const SX8634Opts*);
     ~SX8634BitDiddler();
 
     /* Overrides from EventReceiver */
@@ -51,6 +51,7 @@ class SX8634BitDiddler : public EventReceiver, public ConsoleInterface {
 
 
   private:
+    const uint8_t _PWR_PIN;
     const uint8_t _GPIO0;  // The platform GPIO pins that match the SX8634 GPIO.
     const uint8_t _GPIO1;  // Used for automated testing.
     const uint8_t _GPIO2;

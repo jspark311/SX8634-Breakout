@@ -34,17 +34,18 @@
 *
 * Pins
 * -------------
-* IO12   SX8634 reset pin
-* IO37   SX8634 IRQ pin
-* IO16   SCL
-* IO17   SDA
+* IO33   SX8634 reset pin via level-shifter
+* IO35   SX8634 IRQ pin via level-shifter with 3.3v pullup
+* IO32   SCL
+* IO25   SDA
 *
+* IO23   3.6v regulator enable line
 * IO13   SX8634 GPIO0 via level-shifter
 * IO14   SX8634 GPIO1 via level-shifter
 * IO27   SX8634 GPIO2 via level-shifter
 * IO26   SX8634 GPIO3 via level-shifter
-* IO25   SX8634 GPIO4 via level-shifter
-* IO32   SX8634 GPIO5 via level-shifter
+* IO18   SX8634 GPIO4 via level-shifter
+* IO19   SX8634 GPIO5 via level-shifter
 * IO22   SX8634 GPIO6 via level-shifter
 * IO21   SX8634 GPIO7 via level-shifter
 */
@@ -92,8 +93,8 @@ extern "C" {
 
 const I2CAdapterOptions i2c_opts(
   0,   // Device number
-  17,  // IO17 (sda)
-  16,  // IO16 (scl)
+  25,  // sda
+  32,  // scl
   0,   // No pullups.
   400000
 );
@@ -128,13 +129,10 @@ const uint8_t sx8634_conf[97] = {
 */
 const SX8634Opts sx8634_opts(
   SX8634_DEFAULT_I2C_ADDR,   // i2c addr
-  12,     // Reset pin
-  37,     // IRQ pin
+  33,     // Reset pin
+  17,     // IRQ pin
   sx8634_conf
 );
-
-
-static const char* TAG = "main-cpp";
 
 
 /*******************************************************************************
@@ -150,7 +148,7 @@ void manuvr_task(void* pvParameter) {
   I2CAdapter i2c(&i2c_opts);
   kernel->subscribe(&i2c);
 
-  SX8634BitDiddler provisioner(&i2c, 13, 14, 27, 26, 25, 32, 22, 21, &sx8634_opts);
+  SX8634BitDiddler provisioner(&i2c, 23, 13, 14, 27, 26, 18, 19, 22, 21, &sx8634_opts);
   kernel->subscribe(&provisioner);
 
   while (1) {
