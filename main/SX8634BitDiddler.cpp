@@ -14,41 +14,61 @@
 *******************************************************************************/
 static SX8634BitDiddler* INSTANCE = nullptr;
 
+static uint8_t  pf_pins[8]; // The platform GPIO pins that match the SX8634 GPIO.
+static uint8_t  pin_transition_values[8];
+static uint32_t pin_transition_times[8];
+
 const MessageTypeDef message_defs_list[] = {
   {  MANUVR_MSG_SX8634_BD_SVC_REQ,    MSG_FLAG_EXPORTABLE,  "SX8634_BD_SVC_REQ",    ManuvrMsg::MSG_ARGS_NONE }  //
 };
 
 
 void sx_gpio_0_isr() {
-  Kernel::log("SX GPIO0 toggled\n");
+  uint8_t sxpin = 0;
+  pin_transition_times[sxpin]  = micros();
+  pin_transition_values[sxpin] = readPin(pf_pins[sxpin]) ? 1 : 0;
 }
 
 void sx_gpio_1_isr() {
-  Kernel::log("SX GPIO1 toggled\n");
+  uint8_t sxpin = 1;
+  pin_transition_times[sxpin]  = micros();
+  pin_transition_values[sxpin] = readPin(pf_pins[sxpin]) ? 1 : 0;
 }
 
 void sx_gpio_2_isr() {
-  Kernel::log("SX GPIO2 toggled\n");
+  uint8_t sxpin = 2;
+  pin_transition_times[sxpin]  = micros();
+  pin_transition_values[sxpin] = readPin(pf_pins[sxpin]) ? 1 : 0;
 }
 
 void sx_gpio_3_isr() {
-  Kernel::log("SX GPIO3 toggled\n");
+  uint8_t sxpin = 3;
+  pin_transition_times[sxpin]  = micros();
+  pin_transition_values[sxpin] = readPin(pf_pins[sxpin]) ? 1 : 0;
 }
 
 void sx_gpio_4_isr() {
-  Kernel::log("SX GPIO4 toggled\n");
+  uint8_t sxpin = 4;
+  pin_transition_times[sxpin]  = micros();
+  pin_transition_values[sxpin] = readPin(pf_pins[sxpin]) ? 1 : 0;
 }
 
 void sx_gpio_5_isr() {
-  Kernel::log("SX GPIO5 toggled\n");
+  uint8_t sxpin = 5;
+  pin_transition_times[sxpin]  = micros();
+  pin_transition_values[sxpin] = readPin(pf_pins[sxpin]) ? 1 : 0;
 }
 
 void sx_gpio_6_isr() {
-  Kernel::log("SX GPIO6 toggled\n");
+  uint8_t sxpin = 6;
+  pin_transition_times[sxpin]  = micros();
+  pin_transition_values[sxpin] = readPin(pf_pins[sxpin]) ? 1 : 0;
 }
 
 void sx_gpio_7_isr() {
-  Kernel::log("SX GPIO7 toggled\n");
+  uint8_t sxpin = 7;
+  pin_transition_times[sxpin]  = micros();
+  pin_transition_values[sxpin] = readPin(pf_pins[sxpin]) ? 1 : 0;
 }
 
 
@@ -67,14 +87,23 @@ void sx_gpio_7_isr() {
 * Constructor.
 */
 SX8634BitDiddler::SX8634BitDiddler(I2CAdapter* i2c, uint8_t _pwr, uint8_t g0, uint8_t g1, uint8_t g2, uint8_t g3, uint8_t g4, uint8_t g5, uint8_t g6, uint8_t g7, const SX8634Opts* sx8634_o)
-    : EventReceiver("SX8634BitDiddler"), _PWR_PIN(_pwr),
-      _GPIO0(g0), _GPIO1(g1), _GPIO2(g2), _GPIO3(g3),
-      _GPIO4(g4), _GPIO5(g5), _GPIO6(g6), _GPIO7(g7),
-      touch(sx8634_o) {
+    : EventReceiver("SX8634BitDiddler"), _PWR_PIN(_pwr), touch(sx8634_o) {
   INSTANCE = this;
+  pf_pins[0] = g0;
+  pf_pins[1] = g1;
+  pf_pins[2] = g2;
+  pf_pins[3] = g3;
+  pf_pins[4] = g4;
+  pf_pins[5] = g5;
+  pf_pins[6] = g6;
+  pf_pins[7] = g7;
   _platform_gpio_make_safe();
   gpioDefine(_PWR_PIN, GPIOMode::OUTPUT);
   setPin(_PWR_PIN, true);       // Turn on power to the touch board.
+  for (uint8_t i = 0; i < 8; i++) {
+    pin_transition_times[i] = 0;
+  }
+
   int mes_count = sizeof(message_defs_list) / sizeof(MessageTypeDef);
   ManuvrMsg::registerMessages(message_defs_list, mes_count);
   i2c->addSlaveDevice((I2CDevice*) &touch);
@@ -94,15 +123,17 @@ SX8634BitDiddler::~SX8634BitDiddler() {
 *******************************************************************************/
 
 int8_t SX8634BitDiddler::_platform_gpio_reconfigure() {
-  const uint8_t* const _addrs[8] = {&_GPIO0, &_GPIO1, &_GPIO2, &_GPIO3, &_GPIO4, &_GPIO5, &_GPIO6, &_GPIO7};
   local_log.concat("Putting platform GPIO into testing mode.\n");
 
+  _gpio_safety(false);
   for (uint8_t i = 0; i < 8; i++) {
+    bool using_isr = false;
     GPIOMode pptm;
     switch (touch.getGPIOMode(i)) {
       case GPIOMode::ANALOG_OUT:
       case GPIOMode::OUTPUT:
         pptm = GPIOMode::INPUT;
+        using_isr = true;
         break;
       case GPIOMode::INPUT:
       case GPIOMode::INPUT_PULLUP:
@@ -112,42 +143,30 @@ int8_t SX8634BitDiddler::_platform_gpio_reconfigure() {
 
       default:
         pptm = GPIOMode::INPUT_PULLUP;
+        using_isr = true;
         break;
     }
     local_log.concatf("SX8634 pin %u has mode: %s.  Setting platform pin %u to mode: %s\n",
       i,
       Platform::getPinModeStr(touch.getGPIOMode(i)),
-      *_addrs[i],
+      pf_pins[i],
       Platform::getPinModeStr(pptm)
     );
-    if (255 != *_addrs[i]) {
-      gpioDefine(*_addrs[i], pptm);
-      if (GPIOMode::INPUT == pptm) {
+    if (255 != pf_pins[i]) {
+      if (using_isr) {
+        unsetPinIRQ(pf_pins[i]);
+      }
+      gpioDefine(pf_pins[i], pptm);
+      if (using_isr) {
         switch (i) {
-          case 0:
-            setPinFxn(*_addrs[i], CHANGE, sx_gpio_0_isr);
-            break;
-          case 1:
-            setPinFxn(*_addrs[i], CHANGE, sx_gpio_1_isr);
-            break;
-          case 2:
-            setPinFxn(*_addrs[i], CHANGE, sx_gpio_2_isr);
-            break;
-          case 3:
-            setPinFxn(*_addrs[i], CHANGE, sx_gpio_3_isr);
-            break;
-          case 4:
-            setPinFxn(*_addrs[i], CHANGE, sx_gpio_4_isr);
-            break;
-          case 5:
-            setPinFxn(*_addrs[i], CHANGE, sx_gpio_5_isr);
-            break;
-          case 6:
-            setPinFxn(*_addrs[i], CHANGE, sx_gpio_6_isr);
-            break;
-          case 7:
-            setPinFxn(*_addrs[i], CHANGE, sx_gpio_7_isr);
-            break;
+          case 0:  setPinFxn(pf_pins[i], CHANGE_PULL_UP, sx_gpio_0_isr);  break;
+          case 1:  setPinFxn(pf_pins[i], CHANGE_PULL_UP, sx_gpio_1_isr);  break;
+          case 2:  setPinFxn(pf_pins[i], CHANGE_PULL_UP, sx_gpio_2_isr);  break;
+          case 3:  setPinFxn(pf_pins[i], CHANGE_PULL_UP, sx_gpio_3_isr);  break;
+          case 4:  setPinFxn(pf_pins[i], CHANGE_PULL_UP, sx_gpio_4_isr);  break;
+          case 5:  setPinFxn(pf_pins[i], CHANGE_PULL_UP, sx_gpio_5_isr);  break;
+          case 6:  setPinFxn(pf_pins[i], CHANGE_PULL_UP, sx_gpio_6_isr);  break;
+          case 7:  setPinFxn(pf_pins[i], CHANGE_PULL_UP, sx_gpio_7_isr);  break;
         }
       }
     }
@@ -159,15 +178,15 @@ int8_t SX8634BitDiddler::_platform_gpio_reconfigure() {
 
 
 int8_t SX8634BitDiddler::_platform_gpio_make_safe() {
-  const uint8_t* const _addrs[8] = {&_GPIO0, &_GPIO1, &_GPIO2, &_GPIO3, &_GPIO4, &_GPIO5, &_GPIO6, &_GPIO7};
   local_log.concat("Putting platform GPIO into INPUT_PULLUP mode.\n");
 
   for (uint8_t i = 0; i < 8; i++) {
-    if (255 != *_addrs[i]) {
-      gpioDefine(*_addrs[i], GPIOMode::INPUT_PULLUP);
-      unsetPinIRQ(*_addrs[i]);
+    if (255 != pf_pins[i]) {
+      gpioDefine(pf_pins[i], GPIOMode::INPUT_PULLUP);
+      unsetPinIRQ(pf_pins[i]);
     }
   }
+  _gpio_safety(true);
   flushLocalLog();
   return 0;
 }
@@ -309,6 +328,25 @@ int8_t SX8634BitDiddler::notify(ManuvrMsg* active_event) {
 */
 void SX8634BitDiddler::printDebug(StringBuilder* output) {
   EventReceiver::printDebug(output);
+  printPins(output);
+}
+
+
+void SX8634BitDiddler::printPins(StringBuilder* output) {
+  local_log.concat("SX8634BitDiddler platform pin assignments\n");
+  local_log.concatf("GPIO safety:    %c\n", _gpio_safety() ? 'y':'n');
+  local_log.concat("\nSX  PF   Val  real micros\n-----------------------------------------\n");
+  for (uint8_t i = 0; i < 8; i++) {
+    local_log.concatf(
+      "%u:  %u   %u    %u   %u\n",
+      i,
+      pf_pins[i],
+      pin_transition_values[i],
+      readPin(i)? 1:0,
+      pin_transition_times[i]
+    );
+  }
+  flushLocalLog();
 }
 
 
@@ -320,23 +358,27 @@ void SX8634BitDiddler::printDebug(StringBuilder* output) {
 
 static const ConsoleCommand console_cmds[] = {
   { "i",    "Info" },
+  { "i 1",  "SX8634 overview" },
+  { "i 2",  "SX8634 GPIO listing" },
+  { "i 3",  "SX8634 SPM" },
+  { "i 4",  "Platform GPIO listing" },
   { "X/x",  "Enable/Disable power to the connected touch board" },
   { "t",    "Touch board info" },
-  { "t1",   "Set SX8634 to ACTIVE" },
-  { "t2",   "Set SX8634 to DOZE" },
-  { "t3",   "Set SX8634 to SLEEP" },
-  { "t4",   "Ping SX8634" },
-  { "t5",   "Reset SX8634" },
+  { "t 1",  "Set SX8634 to ACTIVE" },
+  { "t 2",  "Set SX8634 to DOZE" },
+  { "t 3",  "Set SX8634 to SLEEP" },
+  { "t 4",  "Ping SX8634" },
+  { "R",    "Reset SX8634" },
+  { "G/g",  "Reconfigure/Safety the platform GPIO pins" },
+  { "O/o",  "Set/Clear GPIO pin on touch board" },
+  { "P/p",  "Set/Clear the value of a platform GPO pin" },
   { "S",    "Save current SPM to local storage" },
-  { "D",    "Dump given SPM blob to console" },
+  { "d",    "Dump given SPM blob to console" },
   { "D",    "Drop given SPM blob from local storage" },
   { "L",    "Load stored SPM blob to SPM" },
   { "l",    "List stored SPM blobs" },
   { "c",    "Print an application config blob from the current SPM" },
-  { "G/g",  "Reconfigure/Safety the platform GPIO pins" },
-  { "B",    "Burn selected config to SX8634 NVM" },
-  { "O/o",  "Set/Clear GPIO pin on touch board" },
-  { "p",    "Set the value of a GPP/GPO pin" }
+  { "B",    "Burn current SPM to SX8634 NVM" }
 };
 
 
@@ -377,13 +419,16 @@ void SX8634BitDiddler::consoleCmdProc(StringBuilder* input) {
     case 'i':   // Debug prints.
       switch (arg0) {
         case 1:
-          touch.printGPIO(&local_log);
+          touch.printOverview(&local_log);
           break;
         case 2:
-          touch.printOverview(&local_log);
+          touch.printGPIO(&local_log);
           break;
         case 3:
           touch.printSPMShadow(&local_log);
+          break;
+        case 4:
+          printPins(&local_log);
           break;
         default:
           printDebug(&local_log);
@@ -399,21 +444,38 @@ void SX8634BitDiddler::consoleCmdProc(StringBuilder* input) {
       break;
 
     /* SX8634 control options */
-    case 'O':   // Set GPO pin
+    case 'O':   // Set GPO pin with optional value.
     case 'o':   // Clear GPO pin
       if (arg0_given && (0 <= arg0) & (8 > arg0)) {
-        ret = touch.setGPOValue(arg0, ('O' == c) ? 255 : 0);
-        local_log.concatf("touch.setGPOValue(%u, %u) returns %d\n", arg0, (('O' == c) ? 255 : 0), ret);
+        uint8_t pinval = ('O' == c) ? 255 : 0;
+        if (arg1_given && (0 <= arg1) & (8 > arg1)) {
+          pinval = arg1;
+        }
+        ret = touch.setGPOValue(arg0, pinval);
+        local_log.concatf("touch.setGPOValue(%u, %u) returns %d\n", arg0, pinval, ret);
       }
       else {
         local_log.concatf("Usage: %c <SX8634 pin>", c);
       }
       break;
 
-    case 'p':   // Set GPO pin, exactly
-      if (arg0_given && arg1_given && (0 <= arg0) & (8 > arg0)) {
-        ret = touch.setGPOValue(arg0, arg1);
-        local_log.concatf("touch.setGPOValue(%u, %u) returns %d\n", arg0, arg1, ret);
+    case 'P':   // Set platform GPO pin
+    case 'p':   // Clear platform GPO pin
+      if (arg0_given && (0 <= arg0) & (8 > arg0)) {
+        uint8_t pfpin = pf_pins[arg0];
+        switch (touch.getGPIOMode(arg0)) {
+          case GPIOMode::INPUT:
+          case GPIOMode::INPUT_PULLUP:
+          case GPIOMode::INPUT_PULLDOWN:
+            setPin(pfpin, 'P' == c);
+            local_log.concatf("Platform pin corrosponding to touch pin %u (%u) set to %s.\n", arg0, pfpin, ('P' == c) ? "high":"low");
+            break;
+          case GPIOMode::OUTPUT:
+          case GPIOMode::ANALOG_OUT:
+          default:
+            local_log.concatf("Platform pin %u is an input.\n", pfpin);
+            break;
+        }
       }
       else {
         local_log.concatf("Usage: %c <SX8634 pin> <desired value>", c);
@@ -439,10 +501,6 @@ void SX8634BitDiddler::consoleCmdProc(StringBuilder* input) {
           ret = touch.ping();
           local_log.concat("touch.ping()");
           break;
-        case 5:
-          ret = touch.reset();
-          local_log.concat("touch.reset()");
-          break;
         default:
           touch.printDebug(&local_log);
           break;
@@ -453,6 +511,11 @@ void SX8634BitDiddler::consoleCmdProc(StringBuilder* input) {
       else {
         local_log.concat("\n");
       }
+      break;
+
+    case 'R':   // Reset the SX8634
+      ret = touch.reset();
+      local_log.concat("touch.reset()");
       break;
 
     case 'B':   // Burn current config to NVM

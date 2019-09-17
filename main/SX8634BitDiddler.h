@@ -13,6 +13,10 @@
 
 #define MANUVR_MSG_SX8634_BD_SVC_REQ  0x7C4F
 
+/* Class flags */
+#define SX8634PROV_FLAG_GPIO_SAFETY       0x01
+
+
 #if !defined(MANUVR_CONSOLE_SUPPORT)
   #error SX8634BitDiddler is useless without MANUVR_CONSOLE_SUPPORT.
 #endif
@@ -22,7 +26,7 @@
 #endif
 
 #if defined(CONFIG_SX8634_CONFIG_ON_FAITH)
-  #error SX8634BitDiddler's operation is not compatible with CONFIG_SX8634_CONFIG_ON_FAITH.
+  #error SX8634BitDiddler operation is not compatible with CONFIG_SX8634_CONFIG_ON_FAITH.
 #endif
 
 #if !defined(MANUVR_STORAGE)
@@ -40,6 +44,8 @@ class SX8634BitDiddler : public EventReceiver, public ConsoleInterface {
     int8_t callback_proc(ManuvrMsg*);
     void printDebug(StringBuilder*);
 
+    void printPins(StringBuilder*);
+
     /* Overrides from ConsoleInterface */
     uint consoleGetCmds(ConsoleCommand**);
     inline const char* consoleName() { return "SX8634BitDiddler";  };
@@ -52,14 +58,6 @@ class SX8634BitDiddler : public EventReceiver, public ConsoleInterface {
 
   private:
     const uint8_t _PWR_PIN;
-    const uint8_t _GPIO0;  // The platform GPIO pins that match the SX8634 GPIO.
-    const uint8_t _GPIO1;  // Used for automated testing.
-    const uint8_t _GPIO2;
-    const uint8_t _GPIO3;
-    const uint8_t _GPIO4;
-    const uint8_t _GPIO5;
-    const uint8_t _GPIO6;
-    const uint8_t _GPIO7;
     StringBuilder _blob_index;
     SX8634 touch;
     ManuvrMsg _msg_service_request;
@@ -67,6 +65,8 @@ class SX8634BitDiddler : public EventReceiver, public ConsoleInterface {
     /* GPIO and automated testing functions */
     int8_t _platform_gpio_reconfigure();
     int8_t _platform_gpio_make_safe();
+    inline void _gpio_safety(bool x) {  _er_set_flag(SX8634PROV_FLAG_GPIO_SAFETY, x);   };
+    inline bool _gpio_safety() {        return _er_flag(SX8634PROV_FLAG_GPIO_SAFETY);   };
 
     int8_t _load_blob_by_name(const char*, uint8_t*);
     int8_t _save_blob_by_name(const char*, uint8_t*);
