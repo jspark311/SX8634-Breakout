@@ -335,7 +335,7 @@ void SX8634BitDiddler::printDebug(StringBuilder* output) {
 void SX8634BitDiddler::printPins(StringBuilder* output) {
   local_log.concat("SX8634BitDiddler platform pin assignments\n");
   local_log.concatf("GPIO safety:    %c\n", _gpio_safety() ? 'y':'n');
-  local_log.concat("\nSX  PF   Val  real micros\n-----------------------------------------\n");
+  local_log.concat("\nSX  PF   Val real micros\n-----------------------------------------\n");
   for (uint8_t i = 0; i < 8; i++) {
     local_log.concatf(
       "%u:  %u   %u    %u   %u\n",

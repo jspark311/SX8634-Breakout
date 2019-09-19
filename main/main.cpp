@@ -131,7 +131,7 @@ const SX8634Opts sx8634_opts(
   SX8634_DEFAULT_I2C_ADDR,   // i2c addr
   33,     // Reset pin
   17,     // IRQ pin
-  sx8634_conf
+  nullptr //sx8634_conf
 );
 
 
