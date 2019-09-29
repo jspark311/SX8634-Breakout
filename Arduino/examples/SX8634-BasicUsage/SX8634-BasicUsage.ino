@@ -25,6 +25,8 @@ void loop() {
   int8_t t_res = touch.poll();
   if (0 < t_res) {
     // Something changed in the hardware.
+    Serial.print("touch.poll() returns ");
+    Serial.println(t_res, DEC);
   }
   else if (Serial.available()) {
     char c = Serial.read();

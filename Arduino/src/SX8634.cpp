@@ -88,7 +88,6 @@ const char* getPinModeStr(GPIOMode mode) {
 }
 
 
-#if defined(CONFIG_SX8634_PROVISIONING)
 /*
 * Given the 128-byte input buffer, strip all the values that are either
 *   reserved or readonly. The new buffer is written back into the input buffer.
@@ -114,7 +113,6 @@ int8_t SX8634::render_stripped_spm(uint8_t* buf) {
   }
   return 0;
 }
-#endif  // CONFIG_SX8634_PROVISIONING
 
 
 /* Static utility function for dumping buffers for humans to read. */
@@ -128,13 +126,11 @@ static void printBuffer(uint8_t* buf, unsigned int len, const char* indent) {
         Serial.print("0x");
         Serial.print(i, HEX);
         Serial.print(": ");
-        for (; i < len; i++) {
-          for (uint8_t n = 0; n < 16; n++) {
-            Serial.print(*(buf + i), HEX);
-            Serial.print(" ");
-          }
-          Serial.print("\n");
+        for (uint8_t n = 0; n < 16; n++) {
+          Serial.print(*(buf + i), HEX);
+          Serial.print(" ");
         }
+        Serial.print("\n");
       }
     }
     if (i < len) {
@@ -205,9 +201,9 @@ void SX8634::printOverview() {
   Serial.println(_sx8634_flag(SX8634_FLAG_IRQ_INHIBIT) ? 'y': 'n');
   Serial.print("-- PWM sync'd:     ");
   Serial.println(_sx8634_flag(SX8634_FLAG_PWM_CHANGE_IN_FLIGHT) ? 'n': 'y');
-  Serial.print("-- Compensations:  %u\n");
+  Serial.print("-- Compensations:  ");
   Serial.println(_compensations, DEC);
-  Serial.print("-- FSM Position:   %s\n");
+  Serial.print("-- FSM Position:   ");
   Serial.println(getFSMStr(_fsm));
   Serial.println("--\n-- Registers:");
   printBuffer(_registers, sizeof(_registers), "--\t  ");
@@ -232,10 +228,10 @@ void SX8634::printSPMShadow() {
     Serial.println(_sx8634_flag(SX8634_FLAG_SPM_DIRTY) ? 'y': 'n');
   }
   Serial.print("--\tSPM open:       ");
-  Serial.print(_sx8634_flag(SX8634_FLAG_SPM_OPEN) ? 'y': 'n');
+  Serial.println(_sx8634_flag(SX8634_FLAG_SPM_OPEN) ? 'y': 'n');
   if (_sx8634_flag(SX8634_FLAG_SPM_OPEN)) {
     Serial.print("--\tSPM writable:   ");
-    Serial.print(_sx8634_flag(SX8634_FLAG_SPM_WRITABLE) ? 'y': 'n');
+    Serial.println(_sx8634_flag(SX8634_FLAG_SPM_WRITABLE) ? 'y': 'n');
   }
   Serial.print("--\tNVM burns:      ");
   Serial.println(_nvm_burns);
@@ -599,7 +595,9 @@ int8_t SX8634::_proc_waiting_pwm_changes() {
 *   probably not from the ISR directly. Dispatches additional I/O.
 */
 int8_t SX8634::read_irq_registers() {
+  int8_t ret = -1;
   if (!_sx8634_flag(SX8634_FLAG_IRQ_INHIBIT)) {
+    ret = 0;
     // If IRQ service is not inhibited, read all the IRQ-related
     //   registers in one shot.
     if (0 == _read_device(0x00, _registers, 10)) {
@@ -702,25 +700,22 @@ int8_t SX8634::read_irq_registers() {
         }
       }
     }
-    return 0;
   }
-  return -1;
+  #if defined(CONFIG_SX8634_DEBUG)
+    Serial.print("read_irq_registers() returns ");
+    Serial.println(ret, DEC);
+  #endif
+  return ret;
 }
 
 
 /*
 * Fire a callback for the given button and state.
 */
-int8_t SX8634::poll() {
-  int8_t ret = 0;
+uint8_t SX8634::poll() {
+  uint8_t ret = 0;
   if (isr_fired) {
     ret = read_irq_registers();
-    if (0 != ret) {
-      #if defined(CONFIG_SX8634_DEBUG)
-        Serial.print("read_irq_registers(): ");
-        Serial.println(ret, DEC);
-      #endif
-    }
     isr_fired = false;
   }
   return ret;
@@ -765,29 +760,58 @@ int8_t SX8634::_process_gpi_change(uint8_t new_val) {
 *******************************************************************************/
 
 /*
-* Calling this function sets off a long chain of async bus operations that
+* Calling this function sets off a long chain of bus operations that
 *   ought to end up with the SPM fully read, and the state machine back to
 *   READY.
 */
 int8_t SX8634::_read_full_spm() {
+  int8_t ret = -1;
   _set_fsm_position(SX8634_FSM::SPM_READ);
   if (!(_sx8634_flag(SX8634_FLAG_SPM_OPEN) & !_sx8634_flag(SX8634_FLAG_SPM_WRITABLE))) {
-    return _open_spm_access_r();
+    if (0 == _open_spm_access_r()) {
+      _set_shadow_reg_val(SX8634_REG_SPM_BASE_ADDR, 0);
+      ret = _write_register(SX8634_REG_SPM_BASE_ADDR, 0x00);
+      while (0 == ret) {
+        ret = _read_block8(_get_shadow_reg_val(SX8634_REG_SPM_BASE_ADDR));
+        if (0 == ret) {
+          ret = _incremenet_spm_window();
+        }
+      }
+      if (1 == ret) {
+        _set_fsm_position(SX8634_FSM::READY);
+        _sx8634_set_flag(SX8634_FLAG_SPM_SHADOWED);
+        ret = 0;
+      }
+    }
   }
-  return -1;
+  return ret;
 }
 
 /*
-* Calling this function sets off a long chain of async bus operations that
+* Calling this function sets off a long chain of bus operations that
 *   ought to end up with the SPM fully written, and the state machine back to
 *   READY.
 */
 int8_t SX8634::_write_full_spm() {
+  int8_t ret = -1;
   _set_fsm_position(SX8634_FSM::SPM_WRITE);
   if (!(_sx8634_flag(SX8634_FLAG_SPM_OPEN) & _sx8634_flag(SX8634_FLAG_SPM_WRITABLE))) {
-    return _open_spm_access_w();
+    if (0 == _open_spm_access_w()) {
+      _set_shadow_reg_val(SX8634_REG_SPM_BASE_ADDR, 0);
+      ret = _write_register(SX8634_REG_SPM_BASE_ADDR, 0x00);
+      while (0 == ret) {
+        ret = _write_block8(_get_shadow_reg_val(SX8634_REG_SPM_BASE_ADDR));
+        if (0 == ret) {
+          ret = _incremenet_spm_window();
+        }
+      }
+      if (1 == ret) {
+        _set_fsm_position(SX8634_FSM::READY);
+        ret = 0;
+      }
+    }
   }
-  return -1;
+  return ret;
 }
 
 /*
@@ -795,25 +819,60 @@ int8_t SX8634::_write_full_spm() {
 * Opens the SPM for reading.
 */
 int8_t SX8634::_open_spm_access_r() {
+  int8_t ret = -1;
   _sx8634_set_flag(SX8634_FLAG_IRQ_INHIBIT);
   if (SX8634OpMode::SLEEP != _mode) {
     setMode(SX8634OpMode::SLEEP);
   }
-  return _write_register(SX8634_REG_SPM_CONFIG, 0x18);
+  if (0 == _write_register(SX8634_REG_SPM_CONFIG, 0x18)) {
+    _sx8634_set_flag(SX8634_FLAG_SPM_WRITABLE, false);
+    _sx8634_set_flag(SX8634_FLAG_SPM_OPEN, true);
+    ret = 0;
+  }
+  #if defined(CONFIG_SX8634_DEBUG)
+    Serial.print("_open_spm_access_r() returns ");
+    Serial.print(ret, DEC);
+    Serial.print("\n");
+  #endif
+  return ret;
 }
+
 
 int8_t SX8634::_open_spm_access_w() {
+  int8_t ret = -1;
   _sx8634_set_flag(SX8634_FLAG_IRQ_INHIBIT);
   if (SX8634OpMode::SLEEP != _mode) {
     setMode(SX8634OpMode::SLEEP);
   }
-  return _write_register(SX8634_REG_SPM_CONFIG, 0x10);
+  if (0 == _write_register(SX8634_REG_SPM_CONFIG, 0x10)) {
+    _sx8634_set_flag(SX8634_FLAG_SPM_WRITABLE, true);
+    _sx8634_set_flag(SX8634_FLAG_SPM_OPEN, true);
+    ret = 0;
+  }
+  #if defined(CONFIG_SX8634_DEBUG)
+    Serial.print("_open_spm_access_w() returns ");
+    Serial.print(ret, DEC);
+    Serial.print("\n");
+  #endif
+  return ret;
 }
 
+
 int8_t SX8634::_close_spm_access() {
+  int8_t ret = -1;
   _sx8634_clear_flag(SX8634_FLAG_IRQ_INHIBIT);
   setMode(SX8634OpMode::ACTIVE);
-  return _write_register(SX8634_REG_SPM_CONFIG, 0x08);
+  if (0 == _write_register(SX8634_REG_SPM_CONFIG, 0x08)) {
+    _sx8634_set_flag(SX8634_FLAG_SPM_WRITABLE, false);
+    _sx8634_set_flag(SX8634_FLAG_SPM_OPEN, false);
+    ret = 0;
+  }
+  #if defined(CONFIG_SX8634_DEBUG)
+    Serial.print("_close_spm_access() returns ");
+    Serial.print(ret, DEC);
+    Serial.print("\n");
+  #endif
+  return ret;
 }
 
 /*
@@ -900,6 +959,23 @@ int8_t SX8634::_class_state_from_spm() {
   }
   return -1;
 }
+
+
+int8_t SX8634::_incremenet_spm_window() {
+  int8_t ret = -1;
+  int spm_base_addr = _get_shadow_reg_val(SX8634_REG_SPM_BASE_ADDR);
+  if (spm_base_addr <= 0x78) {
+    // We're writing our shadow of the SPM. Write the next base address.
+    _wait_for_reset(30);
+    ret = _write_register(SX8634_REG_SPM_BASE_ADDR, spm_base_addr + 8);
+  }
+  else {
+    _sx8634_clear_flag(SX8634_FLAG_SPM_DIRTY);
+    ret = (0 == _close_spm_access()) ? 1 : -2;
+  }
+  return ret;
+}
+
 
 
 /*******************************************************************************
@@ -1064,7 +1140,7 @@ int8_t SX8634::load_spm_from_buffer(uint8_t* buf) {
 #if defined(CONFIG_SX8634_PROVISIONING)
 
 int8_t SX8634::burn_nvm() {
-  int8_t ret = -4;
+  int8_t ret = -6;
   if (_sx8634_flag(SX8634_FLAG_SPM_SHADOWED)) {
     // SPM is shadowed. Whatever changes we made to it will be propagated into
     //   the NVM so that they become the defaults after resst.
@@ -1072,104 +1148,29 @@ int8_t SX8634::burn_nvm() {
     _set_fsm_position(SX8634_FSM::NVM_BURN);
     if (SX8634OpMode::DOZE != _mode) {
       #if defined(CONFIG_SX8634_DEBUG)
-        Kernel::log("SX8634 moving to doze mode.\n");
+        Serial.print("SX8634 moving to doze mode.\n");
       #endif
       setMode(SX8634OpMode::DOZE);
     }
-    ret = _write_register(SX8634_REG_SPM_KEY_MSB, 0x62);
+    ret++;
+    if (0 == _write_register(SX8634_REG_SPM_KEY_MSB, 0x62)) {
+      Serial.print("0x62 --> SPM_KEY_MSB\n");
+      ret++;
+      if (0 == _write_register(SX8634_REG_SPM_KEY_LSB, 0x9D)) {
+        Serial.print("0x9D --> SPM_KEY_LSB\n");
+        ret++;
+        if (0 == _write_register(SX8634_REG_SPM_BASE_ADDR, 0xA5)) {
+          Serial.print("0xA5 --> SPM_BASE_ADDR\n");
+          ret++;
+          if (0 == _write_register(SX8634_REG_SPM_BASE_ADDR, 0x5A)) {
+            Serial.print("0x5A --> SPM_BASE_ADDR\n");
+            ret = 0;
+          }
+        }
+      }
+    }
   }
   return ret;
 }
 
 #endif  // CONFIG_SX8634_PROVISIONING
-
-
-
-
-/*
-*/
-int8_t SX8634::io_op_callback(BusOp* _op) {
-  switch (completed->get_opcode()) {
-    case BusOpcode::TX:
-      switch (completed->sub_addr) {
-        case SX8634_REG_SPM_CONFIG:
-          _sx8634_set_flag(SX8634_FLAG_SPM_WRITABLE, (0x00 == (*(completed->buf) & 0x08)));
-          _sx8634_set_flag(SX8634_FLAG_SPM_OPEN, (0x10 == (*(completed->buf) & 0x30)));
-          _set_shadow_reg_val(SX8634_REG_SPM_BASE_ADDR, 0);
-          if (_sx8634_flag(SX8634_FLAG_SPM_OPEN)) {
-            _write_register(SX8634_REG_SPM_BASE_ADDR, 0x00);
-          }
-          break;
-        case SX8634_REG_SPM_BASE_ADDR:
-          if (SX8634_FSM::NVM_BURN == _fsm) {
-            #if defined(CONFIG_SX8634_PROVISIONING)
-              // We are about to burn the NVM.
-              _set_fsm_position(SX8634_FSM::READY);
-              switch (*(completed->buf)) {
-                case 0xA5:
-                  #if defined(CONFIG_SX8634_DEBUG)
-                    Kernel::log("0xA5 --> SPM_BASE_ADDR\n");
-                  #endif
-                  _write_register(SX8634_REG_SPM_BASE_ADDR, 0x5A);
-                  break;
-                case 0x5A:
-                  #if defined(CONFIG_SX8634_DEBUG)
-                    Kernel::log("0x5A --> SPM_BASE_ADDR\n");
-                  #endif
-                  break;
-              }
-            #endif // CONFIG_SX8634_PROVISIONING
-          }
-          else if (_sx8634_flag(SX8634_FLAG_SPM_OPEN)) {
-            // If the SPM is open, and this register was just written, we take
-            //   the next step and read or write 8 bytes at the address.
-            if (_sx8634_flag(SX8634_FLAG_SPM_WRITABLE)) {
-              // Write the next 8 bytes if needed.
-              _write_block8(_get_shadow_reg_val(SX8634_REG_SPM_BASE_ADDR));
-            }
-            else {
-              // Read the next 8 bytes if needed.
-              _read_block8(_get_shadow_reg_val(SX8634_REG_SPM_BASE_ADDR));
-            }
-          }
-          break;
-
-        #if defined(CONFIG_SX8634_PROVISIONING)
-          case SX8634_REG_SPM_KEY_MSB:
-            #if defined(CONFIG_SX8634_DEBUG)
-              Kernel::log("0x62 --> SPM_KEY_MSB\n");
-            #endif
-            _write_register(SX8634_REG_SPM_KEY_LSB, 0x9D);
-            break;
-          case SX8634_REG_SPM_KEY_LSB:
-            #if defined(CONFIG_SX8634_DEBUG)
-              Kernel::log("0x9D --> SPM_KEY_LSB\n");
-            #endif
-            _write_register(SX8634_REG_SPM_BASE_ADDR, 0xA5);
-            break;
-        #endif // CONFIG_SX8634_PROVISIONING
-
-        case SX8634_REG_IRQ_SRC:
-          // This register is read-only, but the SPM window starts at offset 0.
-          if (_sx8634_flag(SX8634_FLAG_SPM_OPEN)) {
-            int spm_base_addr = _get_shadow_reg_val(SX8634_REG_SPM_BASE_ADDR);
-            if (spm_base_addr <= 0x78) {
-              // We're writing our shadow of the SPM. Write the next base address.
-              _wait_for_reset(30);
-              _write_register(SX8634_REG_SPM_BASE_ADDR, spm_base_addr + 8);
-            }
-            else {
-              _sx8634_clear_flag(SX8634_FLAG_SPM_DIRTY);
-              _close_spm_access();
-            }
-          }
-          break;
-        default:
-          break;
-      }
-      break;
-    default:
-      break;
-  }
-  return 0;
-}

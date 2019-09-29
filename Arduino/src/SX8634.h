@@ -30,9 +30,19 @@ limitations under the License.
 
 #define PRINT_DIVIDER_1_STR "\n---------------------------------------------------\n"
 
+#define CONFIG_SX8634_DEBUG 1
+
+
 #if defined(CONFIG_SX8634_PROVISIONING) & defined(CONFIG_SX8634_CONFIG_ON_FAITH)
   #error CONFIG_SX8634_PROVISIONING and CONFIG_SX8634_CONFIG_ON_FAITH cannot be defined simultaneously.
 #endif
+
+/* These are the poll() return flags. */
+#define SX8634_CHANGE_BUTTON                0x01  //
+#define SX8634_CHANGE_SLIDER                0x02  //
+#define SX8634_CHANGE_GPI                   0x04  //
+#define SX8634_CHANGE_CONFIG                0x08  //
+
 
 /* These are the i2c register definitions. */
 #define SX8634_REG_IRQ_SRC                  0x00  // Read-only
@@ -351,7 +361,7 @@ class SX8634 {
 
     /* Class service functions */
     int8_t read_irq_registers();              // Service an IRQ.
-    int8_t poll();                            // Check for changes.
+    uint8_t poll();                           // Check for changes.
     int8_t ping();                            // Pings the device.
 
     int8_t  copy_spm_to_buffer(uint8_t*);
@@ -411,6 +421,7 @@ class SX8634 {
     int8_t  _write_block8(uint8_t idx); // Write 8 bytes to the SPM.
     int8_t  _compare_config();          // Compare provided config against SPM.
     int8_t  _class_state_from_spm();    // Init this class from SPM shadow.
+    int8_t  _incremenet_spm_window();
 
     int8_t  _wait_for_reset(uint);    // Will block until reset disasserts or times out.
     int8_t  _reset_callback();        // Deals with the back-side of reset.
