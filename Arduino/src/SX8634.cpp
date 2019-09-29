@@ -33,7 +33,7 @@ limitations under the License.
 *******************************************************************************/
 
 volatile static SX8634* INSTANCE = nullptr;
-static volatile bool isr_fired = false;
+volatile static bool isr_fired = false;
 
 /* Offsets of off-limits values in the SPM */
 static const uint8_t _reserved_spm_offsets[31] = {
@@ -127,7 +127,7 @@ static void printBuffer(uint8_t* buf, unsigned int len, const char* indent) {
         Serial.print(i, HEX);
         Serial.print(": ");
         for (uint8_t n = 0; n < 16; n++) {
-          Serial.print(*(buf + i), HEX);
+          Serial.print(*(buf + i + n), HEX);
           Serial.print(" ");
         }
         Serial.print("\n");
@@ -197,6 +197,8 @@ void SX8634::printOverview() {
   Serial.println(getModeStr(operationalMode()));
   Serial.print("-- Found:          ");
   Serial.println(deviceFound() ? 'y':'n');
+  Serial.print("-- isr_fired       ");
+  Serial.println(isr_fired ? 'y':'n');
   Serial.print("-- IRQ Inhibit:    ");
   Serial.println(_sx8634_flag(SX8634_FLAG_IRQ_INHIBIT) ? 'y': 'n');
   Serial.print("-- PWM sync'd:     ");
@@ -342,14 +344,15 @@ int8_t SX8634::_write_register(uint8_t addr, uint8_t val) {
 */
 int8_t SX8634::_read_device(uint8_t reg, uint8_t* buf, uint8_t len) {
   int8_t return_value = -1;
+  uint8_t rx_len = 0;
   Wire.beginTransmission(_opts.i2c_addr);
-  Wire.write(reg);
+  Wire.send(reg);
   if (0 == Wire.endTransmission(false)) {
-    Wire.requestFrom(_opts.i2c_addr, len, (uint8_t) 0);
-    for (uint8_t i = 0; i < len; i++) {
-      *(buf + 1) = Wire.receive();
+    Wire.requestFrom(_opts.i2c_addr, len);
+    while (Wire.available() && (rx_len < len)) {
+      *(buf + rx_len++) = Wire.receive();
     }
-    return_value = 0;
+    return_value = (rx_len == len) ? 0 : -2;
   }
   return return_value;
 }
@@ -360,7 +363,7 @@ int8_t SX8634::_read_device(uint8_t reg, uint8_t* buf, uint8_t len) {
 int8_t SX8634::_write_device(uint8_t reg, uint8_t* buf, uint8_t len) {
   int8_t return_value = -1;
   Wire.beginTransmission(_opts.i2c_addr);
-  Wire.write(reg);
+  Wire.send(reg);
   for (uint8_t i = 0; i < len; i++) {
     Wire.write(*(buf + i));
   }
@@ -595,11 +598,15 @@ int8_t SX8634::_proc_waiting_pwm_changes() {
 *   probably not from the ISR directly. Dispatches additional I/O.
 */
 int8_t SX8634::read_irq_registers() {
-  int8_t ret = -1;
+  int8_t ret = 0;
+  if (!_sx8634_flag(SX8634_FLAG_DEV_FOUND)) {
+    return ret;
+  }
   if (!_sx8634_flag(SX8634_FLAG_IRQ_INHIBIT)) {
     ret = 0;
     // If IRQ service is not inhibited, read all the IRQ-related
     //   registers in one shot.
+
     if (0 == _read_device(0x00, _registers, 10)) {
       if (_sx8634_flag(SX8634_FLAG_SPM_OPEN)) {
         int spm_base_addr = _get_shadow_reg_val(SX8634_REG_SPM_BASE_ADDR);
@@ -642,7 +649,7 @@ int8_t SX8634::read_irq_registers() {
           _sx8634_set_flag(SX8634_FLAG_COMPENSATING, (_registers[9] & 0x04));
           if (current != _mode) {
             #if defined(CONFIG_SX8634_DEBUG)
-              Serial.print("-- SX8634 is now in mode %s\n");
+              Serial.print("-- SX8634 is now in mode ");
               Serial.println(getModeStr(current));
             #endif   // CONFIG_SX8634_DEBUG
             _mode = current;
@@ -654,10 +661,7 @@ int8_t SX8634::read_irq_registers() {
         if (0x04 & _registers[0]) {  // Button interrupt
           uint16_t current = (((uint16_t) (_registers[1] & 0x0F)) << 8) | ((uint16_t) _registers[2]);
           if (current != _buttons) {
-            #if defined(CONFIG_SX8634_DEBUG)
-              Serial.print("-- Buttons: ");
-              Serial.println(current, DEC);
-            #endif
+            ret |= SX8634_CHANGE_BUTTON;
             // Bitshift the button values into discrete messages.
             uint16_t diff = current ^ _buttons;
             for (uint8_t i = 0; i < 12; i++) {
@@ -677,10 +681,7 @@ int8_t SX8634::read_irq_registers() {
           _sx8634_set_flag(SX8634_FLAG_SLIDER_MOVE_UP,   (_registers[1] & 0x40));
           uint16_t current = (((uint16_t) _registers[3]) << 8) | ((uint16_t) _registers[4]);
           if (current != _slider_val) {
-            #if defined(CONFIG_SX8634_DEBUG)
-              Serial.print("-- Slider: ");
-              Serial.println(current, DEC);
-            #endif   // CONFIG_SX8634_DEBUG
+            ret |= SX8634_CHANGE_SLIDER;
             _slider_val = current;
             if (nullptr != _cb_fxn_slider) {
               _cb_fxn_slider(0, _slider_val);
@@ -688,6 +689,7 @@ int8_t SX8634::read_irq_registers() {
           }
         }
         if (first_irq || (0x10 & _registers[0])) {  // GPI interrupt
+          ret |= SX8634_CHANGE_GPI;
           _process_gpi_change(_registers[7]);
         }
         if (0x20 & _registers[0]) {  // SPM stat interrupt
@@ -705,22 +707,17 @@ int8_t SX8634::read_irq_registers() {
       }
     }
   }
-  #if defined(CONFIG_SX8634_DEBUG)
-    Serial.print("read_irq_registers() returns ");
-    Serial.println(ret, DEC);
-  #endif
   return ret;
 }
 
 
 /*
-* Fire a callback for the given button and state.
 */
 uint8_t SX8634::poll() {
   uint8_t ret = 0;
   if (isr_fired) {
-    ret = read_irq_registers();
-    isr_fired = false;
+    ret = (uint8_t) read_irq_registers();
+    isr_fired = !(digitalRead(_opts.irq_pin));
   }
   return ret;
 }
@@ -874,12 +871,14 @@ int8_t SX8634::_close_spm_access() {
 *   registers and there is no way to discover the mistake.
 */
 int8_t SX8634::_read_block8(uint8_t idx) {
+  int8_t ret = _read_device(0, (_spm_shadow + idx), 8);
   #if defined(CONFIG_SX8634_DEBUG)
     Serial.print("_read_block8(");
     Serial.print(idx, DEC);
-    Serial.print(")\n");
+    Serial.print(") returns ");
+    Serial.println(ret, DEC);
   #endif
-  return _read_device(0, (_spm_shadow + idx), 8);
+  return ret;
 }
 
 /*
@@ -888,12 +887,14 @@ int8_t SX8634::_read_block8(uint8_t idx) {
 *   registers and there is no way to discover the mistake.
 */
 int8_t SX8634::_write_block8(uint8_t idx) {
+  int8_t ret = _write_device(0, (_spm_shadow + idx), 8);
   #if defined(CONFIG_SX8634_DEBUG)
     Serial.print("_write_block8(");
     Serial.print(idx, DEC);
-    Serial.print(")\n");
+    Serial.print(") returns ");
+    Serial.println(ret, DEC);
   #endif
-  return _write_device(0, (_spm_shadow + idx), 8);
+  return ret;
 }
 
 /*

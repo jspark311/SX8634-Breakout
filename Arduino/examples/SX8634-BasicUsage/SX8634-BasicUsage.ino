@@ -35,10 +35,6 @@ void cb_gpi(int pin, int state) {
 }
 
 
-
-
-
-
 void setup() {
   Serial.begin(115200);
   Wire.setSDA(18);
@@ -48,6 +44,9 @@ void setup() {
   touch.setButtonFxn(cb_button);
   touch.setSliderFxn(cb_slider);
   touch.setGPIFxn(cb_gpi);
+
+  touch.reset();
+  touch.setMode(SX8634OpMode::ACTIVE);
 }
 
 
@@ -55,8 +54,6 @@ void loop() {
   int8_t t_res = touch.poll();
   if (0 < t_res) {
     // Something changed in the hardware.
-    Serial.print("touch.poll() returns ");
-    Serial.println(t_res, DEC);
   }
   else if (Serial.available()) {
     char c = Serial.read();
@@ -132,6 +129,10 @@ void loop() {
         */
         Serial.print("getGPIOValue(3) --> ");
         Serial.print(touch.getGPIOValue(3), DEC);
+        break;
+
+      case '0':   // Read GPIO pin
+        touch.read_irq_registers();
         break;
 
       case 'c':   // Print an application config blob from the current SPM.
