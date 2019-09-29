@@ -11,7 +11,7 @@ SX8634Opts _touch_opts(
 SX8634 touch(&_touch_opts);
 
 
-void cb_button(int button, bool pressed) {
+static void cb_button(int button, bool pressed) {
   Serial.print("cb_button() ");
   Serial.print(button, DEC);
   Serial.print(" --> ");
@@ -19,7 +19,7 @@ void cb_button(int button, bool pressed) {
 }
 
 
-void cb_slider(int slider, int value) {
+static void cb_slider(int slider, int value) {
   Serial.print("cb_slider() ");
   Serial.print(slider, DEC);
   Serial.print(" --> ");
@@ -27,7 +27,7 @@ void cb_slider(int slider, int value) {
 }
 
 
-void cb_gpi(int pin, int state) {
+static void cb_gpi(int pin, int state) {
   Serial.print("cb_gpi() ");
   Serial.print(pin, DEC);
   Serial.print(" --> ");

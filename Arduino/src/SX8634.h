@@ -390,6 +390,9 @@ class SX8634 {
 
   private:
     const SX8634Opts _opts;
+    SX8634ButtonCB _cb_fxn_button = nullptr;
+    SX8634SliderCB _cb_fxn_slider = nullptr;
+    SX8634GPICB    _cb_fxn_gpi    = nullptr;
     uint16_t _flags         = 0;
     uint16_t _slider_val    = 0;
     uint16_t _buttons       = 0;
@@ -402,10 +405,6 @@ class SX8634 {
     SX8634_FSM   _fsm       = SX8634_FSM::NO_INIT;
     uint8_t  _registers[19];     // Register shadows
     uint8_t  _spm_shadow[128];   // SPM shadow
-
-    SX8634ButtonCB _cb_fxn_button = nullptr;
-    SX8634SliderCB _cb_fxn_slider = nullptr;
-    SX8634GPICB    _cb_fxn_gpi    = nullptr;
 
     /* Flag manipulation inlines */
     inline uint16_t _sx8634_flags() {                return _flags;            };
