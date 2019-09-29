@@ -662,7 +662,9 @@ int8_t SX8634::read_irq_registers() {
             uint16_t diff = current ^ _buttons;
             for (uint8_t i = 0; i < 12; i++) {
               if (diff & 0x01) {
-                _send_button_event(i, (0x01 & (current >> i)));
+                if (nullptr != _cb_fxn_button) {
+                  _cb_fxn_button(i, (0x01 & (current >> i)));
+                }
               }
               diff = diff >> 1;
             }
@@ -680,7 +682,9 @@ int8_t SX8634::read_irq_registers() {
               Serial.println(current, DEC);
             #endif   // CONFIG_SX8634_DEBUG
             _slider_val = current;
-            _send_slider_event();  // Send slider value.
+            if (nullptr != _cb_fxn_slider) {
+              _cb_fxn_slider(0, _slider_val);
+            }
           }
         }
         if (first_irq || (0x10 & _registers[0])) {  // GPI interrupt
@@ -723,20 +727,6 @@ uint8_t SX8634::poll() {
 
 
 /*
-* Fire a callback for the given button and state.
-*/
-void SX8634::_send_button_event(uint8_t button, bool pushed) {
-  //msg->addArg((uint8_t) button);
-}
-
-/*
-* Fire a callback for notice of slider update.
-*/
-void SX8634::_send_slider_event() {
-  //_slider_msg.addArg((uint16_t) _slider_val);
-}
-
-/*
 * This is the handler function for changes in GPI values.
 */
 int8_t SX8634::_process_gpi_change(uint8_t new_val) {
@@ -747,6 +737,9 @@ int8_t SX8634::_process_gpi_change(uint8_t new_val) {
       uint8_t mask = 0x01 << i;
       if ((new_val & mask) ^ (_gpi_levels & mask)) {
         ret++;
+        if (nullptr != _cb_fxn_gpi) {
+          _cb_fxn_gpi(i, (new_val & mask));
+        }
       }
     }
     _gpi_levels = new_val;  // Store the new value;

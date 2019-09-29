@@ -32,6 +32,14 @@ limitations under the License.
 
 #define CONFIG_SX8634_DEBUG 1
 
+/*******************************************************************************
+* Function-pointer definitions.                                                *
+* These are typedefs to accomodate different types of callbacks.               *
+*******************************************************************************/
+typedef void (*SX8634ButtonCB)(int, bool);
+typedef void (*SX8634SliderCB)(int, int);
+typedef void (*SX8634GPICB)(int, int);
+
 
 #if defined(CONFIG_SX8634_PROVISIONING) & defined(CONFIG_SX8634_CONFIG_ON_FAITH)
   #error CONFIG_SX8634_PROVISIONING and CONFIG_SX8634_CONFIG_ON_FAITH cannot be defined simultaneously.
@@ -364,6 +372,11 @@ class SX8634 {
     uint8_t poll();                           // Check for changes.
     int8_t ping();                            // Pings the device.
 
+    /* Callback setters */
+    inline void setButtonFxn(SX8634ButtonCB x) {  _cb_fxn_button = x;   };
+    inline void setSliderFxn(SX8634SliderCB x) {  _cb_fxn_slider = x;   };
+    inline void setGPIFxn(SX8634GPICB x) {        _cb_fxn_gpi    = x;   };
+
     int8_t  copy_spm_to_buffer(uint8_t*);
     int8_t  load_spm_from_buffer(uint8_t*);
     #if defined(CONFIG_SX8634_PROVISIONING)
@@ -390,6 +403,10 @@ class SX8634 {
     uint8_t  _registers[19];     // Register shadows
     uint8_t  _spm_shadow[128];   // SPM shadow
 
+    SX8634ButtonCB _cb_fxn_button = nullptr;
+    SX8634SliderCB _cb_fxn_slider = nullptr;
+    SX8634GPICB    _cb_fxn_gpi    = nullptr;
+
     /* Flag manipulation inlines */
     inline uint16_t _sx8634_flags() {                return _flags;            };
     inline bool _sx8634_flag(uint16_t _flag) {       return (_flags & _flag);  };
@@ -400,10 +417,6 @@ class SX8634 {
       if (nu) _flags |= _flag;
       else    _flags &= ~_flag;
     };
-
-    void     _send_button_event(uint8_t button, bool pushed);
-    void     _send_slider_event();
-    int8_t   _process_gpi_change(uint8_t new_val);
 
     int8_t   _get_shadow_reg_mem_addr(uint8_t addr);
     uint8_t  _get_shadow_reg_val(uint8_t addr);
@@ -428,6 +441,7 @@ class SX8634 {
     int8_t  _clear_registers();       // Wipe our shadows.
     int8_t  _start_compensation();    // Tell the sensor to run a compensation cycle.
     int8_t  _ll_pin_init();           // Platform GPIO config
+    int8_t  _process_gpi_change(uint8_t new_val);
 
     int8_t _write_gpo_register(uint8_t pin, bool val);
     int8_t _write_pwm_value(uint8_t pin, uint8_t val);
