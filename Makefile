@@ -13,7 +13,7 @@ export OUTPUT_PATH      = $(BUILD_ROOT)/build
 
 CXXFLAGS += $(MANUVR_OPTIONS)
 
-PROJECT_NAME         := woose-tracker
+PROJECT_NAME         := SX8634-Provisioner
 BUILD_DIR_BASE       := $(OUTPUT_PATH)
 EXTRA_COMPONENT_DIRS := $(BUILD_ROOT)/lib/ManuvrOS/ManuvrOS
 COMPONENT_EXTRA_INCLUDES := $(PROJECT_PATH)/lib
