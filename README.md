@@ -1,10 +1,12 @@
 # SX8634-Breakout
 
-A breakout board for Semtech's SX8634
+A breakout board for Semtech's SX8634 capacitive touch sensor.
 
 #### [Hackaday.io Page](https://hackaday.io/project/166853-sx8634-touch-sensor-breakout)
 
 #### [Order from Tindie](https://www.tindie.com/products/17862/)
+
+#### [Arduino driver](https://github.com/jspark311/Arduino-SX8634)
 
 ------------------------
 
@@ -13,8 +15,6 @@ A breakout board for Semtech's SX8634
 **./doc**:  Location for documentation
 
 **./KiCAD**:  Hardware design files
-
-**./Arduino**:  Arduino driver
 
 **./lib**:  Third-party libraries
 
